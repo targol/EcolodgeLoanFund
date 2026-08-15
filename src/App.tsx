@@ -452,7 +452,24 @@ export default function App() {
   // Reset core cycle to base state
   const handleResetFundCycle = () => {
     const defaults = getInitialMockData();
-    persistState(defaults.members, defaults.payments, defaults.lotteries, defaults.settings);
+    persistState(defaults.members, defaults.payments, defaults.lotteries, defaults.settings, defaults.cycles);
+  };
+
+  // Full Database Import & Restore handler
+  const handleImportDatabase = (imported: {
+    members: Member[];
+    payments: Payment[];
+    lotteries: any[];
+    settings: FundSettings;
+    cycles?: FundCycle[];
+  }) => {
+    persistState(
+      imported.members,
+      imported.payments,
+      imported.lotteries,
+      imported.settings,
+      imported.cycles || cycles
+    );
   };
 
   // Admin login process handler
@@ -652,6 +669,7 @@ export default function App() {
                 onUpdateSettings={handleUpdateSettings}
                 onDrawSuccess={handleDrawSuccess}
                 onResetFundCycle={handleResetFundCycle}
+                onImportDatabase={handleImportDatabase}
                 isDrawingActive={isDrawingActive}
                 setIsDrawingActive={setIsDrawingActive}
                 onToggleApplyForLoan={handleToggleApplyForLoan}

@@ -143,7 +143,7 @@ export function getInitialMockData(): {
 } {
   const settings: FundSettings = {
     fundName: "صندوق قرض‌الحسنه و پس‌انداز حامی بومگردی",
-    monthlyAmount: 5000000, // 5,000,000 Toman Core Installment
+    monthlyAmount: 5500000, // 5,500,000 Toman Core Installment
     savingsAmount: 500000,  // 500,000 Toman Savings Portion (invested in Gold Fund)
     currentCycleNumber: 3,  // Currently in Round 3
     lotteryDayOfMonth: 1,   // Automatic lottery on 1st day of month
@@ -330,7 +330,7 @@ export function getInitialMockData(): {
       isAppliedForLoan: false,
       isAppliedForEmergency: false,
       participatedCycles: [3],
-      currentCycleShares: 2
+      currentCycleShares: 1
     },
     // Members who participated in earlier cycles (Cycle 1)
     {
@@ -547,18 +547,18 @@ export function getInitialMockData(): {
       status: "active",
       startShamsiDate: "۱۴۰۵/۰۳/۰۱",
       endShamsiDate: "۱۴۰۵/۱۲/۲۹",
-      monthlyAmount: 5000000,
+      monthlyAmount: 5500000,
       savingsAmount: 500000,
       totalMonths: 10,
       memberIds: [
         "mem_1", "mem_2", "mem_3", "mem_4", "mem_5", "mem_6", "mem_7", "mem_8", "mem_9", "mem_10"
       ],
       memberShares: {
-        mem_1: 1, mem_2: 1, mem_3: 1, mem_4: 1, mem_5: 1, mem_6: 1, mem_7: 1, mem_8: 1, mem_9: 1, mem_10: 2
+        mem_1: 1, mem_2: 1, mem_3: 1, mem_4: 1, mem_5: 1, mem_6: 1, mem_7: 1, mem_8: 1, mem_9: 1, mem_10: 1
       },
-      notes: "دوره جاری با ۱۰ عضو و ۱۱ سهم: ۵ میلیون تومان قسط اصلی + ۵۰۰ هزار تومان پس‌انداز ماهانه هر سهم (سرمایه‌گذاری در صندوق طلا)",
+      notes: "دوره جاری با ۱۰ عضو و ۱۰ سهم: ۵.۵ میلیون تومان قسط اصلی + ۵۰۰ هزار تومان پس‌انداز ماهانه هر سهم (سرمایه‌گذاری در صندوق طلا)",
       goldInvestmentNote: "مبالغ پس‌انداز ماهانه (۵۰۰ هزار تومان در ماه به ازای هر سهم) در صندوق طلا سرمایه‌گذاری شده است. مبلغ نهایی پس‌انداز انباشته پس از پایان دوره و محاسبه ارزش روز مشخص و در مورد نحوه انتقال به دوره‌های بعدی تصمیم‌گیری خواهد شد.",
-      accumulatedSavingsPool: 16500000,
+      accumulatedSavingsPool: 15000000,
       pastWinners: [
         { monthName: "خرداد ۱۴۰۵", winnerName: "عبدالعلی ابراهیمی - خورشید سرخان جم" },
         { monthName: "تیر ۱۴۰۵", winnerName: "نگار و عادل - راهنما" },

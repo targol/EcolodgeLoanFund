@@ -73,7 +73,7 @@ export default function CycleManager({
   // New Cycle Form state
   const nextCycleNum = (cycles.length > 0 ? Math.max(...cycles.map(c => c.cycleNumber)) : 0) + 1;
   const [newCycleTitle, setNewCycleTitle] = useState(`دوره ${toPersianDigits(nextCycleNum)} (${toPersianDigits(settings.currentYear + 1)} - ${toPersianDigits(settings.currentYear + 2)})`);
-  const [newMonthlyAmount, setNewMonthlyAmount] = useState<string>("5000000");
+  const [newMonthlyAmount, setNewMonthlyAmount] = useState<string>("5500000");
   const [newSavingsAmount, setNewSavingsAmount] = useState<string>("500000");
   const [newTotalMonths, setNewTotalMonths] = useState<number>(10);
   const [newStartDate, setNewStartDate] = useState<string>(`${toPersianDigits(settings.currentYear + 1)}/۰۱/۰۱`);

@@ -1,12 +1,12 @@
 import React, { useState } from "react";
 import { Member, Payment, FundSettings, FundCycle, PERS_MONTH_NAMES } from "../types";
-import { toPersianDigits, formatCurrency, calculatePaymentScore } from "../utils/jalali";
+import { toPersianDigits, formatCurrency, calculatePaymentScore, gregorianToJalali } from "../utils/jalali";
 import { sendTelegramMessage, formatTelegramMessage, DEFAULT_TELEGRAM_TEMPLATE } from "../utils/telegram";
 import { 
   Users, UserPlus, Coins, Calendar, Check, X, AlertCircle, Trash2, Edit2,
   Settings as SettingsIcon, Save, RefreshCw, Trophy, Info, Key, Shield, Eye, EyeOff, Filter,
   Send, Bot, MessageSquare, Loader2, CheckCircle2, Radio, Image as ImageIcon, Upload, Link as LinkIcon,
-  Layers
+  Layers, Download, Database, FileCode, Copy, CheckCircle, Code, HelpCircle
 } from "lucide-react";
 import LotteryDraw from "./LotteryDraw";
 import CycleManager from "./CycleManager";
@@ -24,6 +24,7 @@ interface AdminPanelProps {
   onUpdateSettings: (newSettings: Partial<FundSettings>) => void;
   onDrawSuccess: (winnerId: string, method: "random" | "weighted" | "manual" | "emergency_random" | "emergency_manual", loanType: "main" | "emergency", customAmount?: number, customWinnerDate?: string) => void;
   onResetFundCycle: () => void;
+  onImportDatabase?: (data: { members: Member[]; payments: Payment[]; lotteries: any[]; settings: FundSettings; cycles?: FundCycle[] }) => void;
   isDrawingActive: boolean;
   setIsDrawingActive: (val: boolean) => void;
   onToggleApplyForLoan?: (memberId: string, type: "main" | "emergency") => void;
@@ -45,6 +46,7 @@ export default function AdminPanel({
   onUpdateSettings,
   onDrawSuccess,
   onResetFundCycle,
+  onImportDatabase,
   isDrawingActive,
   setIsDrawingActive,
   onToggleApplyForLoan,
@@ -83,6 +85,131 @@ export default function AdminPanel({
 
   // Fund Custom Logo & Favicon
   const [editLogoUrl, setEditLogoUrl] = useState<string>(settings.logoUrl || "");
+
+  // Database Backup, Restore, and GitLab Export states
+  const [isGitLabExportModalOpen, setIsGitLabExportModalOpen] = useState(false);
+  const [backupFeedback, setBackupFeedback] = useState<{ type: "idle" | "success" | "error"; msg?: string }>({ type: "idle" });
+  const [isCopiedGitLabConfig, setIsCopiedGitLabConfig] = useState(false);
+
+  const handleDownloadBackupJson = () => {
+    try {
+      const fullBackup = {
+        version: "1.0",
+        exportDate: new Date().toISOString(),
+        exportDateShamsi: toPersianDigits(gregorianToJalali(new Date())),
+        settings: {
+          ...settings,
+          fundName: editFundName,
+          monthlyAmount: Number(editPriceAmount) || settings.monthlyAmount,
+          savingsAmount: Number(editSavingsAmount) || settings.savingsAmount,
+          lotteryDayOfMonth: editLotteryDayOfMonth,
+          autoDrawOnFirstOfMonth: editAutoDrawOnFirst,
+          adminPassword: editAdminPassword,
+          logoUrl: editLogoUrl,
+          goldFundValueToman: Number(editGoldFundValue) || settings.goldFundValueToman,
+          goldInvestmentNote: editGoldInvestmentNote,
+          telegramBotToken: editTelegramBotToken,
+          telegramChatId: editTelegramChatId,
+          enableTelegramNotification: editEnableTelegram,
+          telegramMessageTemplate: editTelegramMessageTemplate
+        },
+        members,
+        payments,
+        lotteries,
+        cycles
+      };
+
+      const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(fullBackup, null, 2));
+      const downloadAnchor = document.createElement("a");
+      downloadAnchor.setAttribute("href", dataStr);
+      downloadAnchor.setAttribute("download", `sandogh-database-backup-${toPersianDigits(settings.currentYear)}.json`);
+      document.body.appendChild(downloadAnchor);
+      downloadAnchor.click();
+      downloadAnchor.remove();
+
+      setBackupFeedback({
+        type: "success",
+        msg: "نسخه پشتیبان کامل پایگاه داده (JSON) با موفقیت دانلود شد."
+      });
+      setTimeout(() => setBackupFeedback({ type: "idle" }), 4000);
+    } catch (err: any) {
+      setBackupFeedback({
+        type: "error",
+        msg: "خطا در تولید فایل پشتیبان: " + (err?.message || "نامشخص")
+      });
+    }
+  };
+
+  const handleFileUploadBackup = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const fileReader = new FileReader();
+    if (e.target.files && e.target.files.length > 0) {
+      const file = e.target.files[0];
+      fileReader.readAsText(file, "UTF-8");
+      fileReader.onload = (event) => {
+        try {
+          const parsed = JSON.parse(event.target?.result as string);
+          if (!parsed.members || !Array.isArray(parsed.members)) {
+            throw new Error("فرمت فایل نامعتبر است (آرایه اعضا یافت نشد).");
+          }
+          if (onImportDatabase) {
+            onImportDatabase({
+              members: parsed.members,
+              payments: parsed.payments || [],
+              lotteries: parsed.lotteries || [],
+              settings: parsed.settings || settings,
+              cycles: parsed.cycles || cycles
+            });
+            // Update local edit form states immediately
+            if (parsed.settings) {
+              setEditFundName(parsed.settings.fundName || editFundName);
+              setEditPriceAmount(String(parsed.settings.monthlyAmount || editPriceAmount));
+              setEditSavingsAmount(String(parsed.settings.savingsAmount || editSavingsAmount));
+              setEditLogoUrl(parsed.settings.logoUrl || "");
+              setEditAdminPassword(parsed.settings.adminPassword || editAdminPassword);
+              setEditGoldFundValue(String(parsed.settings.goldFundValueToman || editGoldFundValue));
+              setEditGoldInvestmentNote(parsed.settings.goldInvestmentNote || editGoldInvestmentNote);
+              setEditTelegramBotToken(parsed.settings.telegramBotToken || editTelegramBotToken);
+              setEditTelegramChatId(parsed.settings.telegramChatId || editTelegramChatId);
+            }
+            setBackupFeedback({
+              type: "success",
+              msg: "پایگاه داده با موفقیت از فایل پشتیبان بازگردانی شد! 🎉"
+            });
+            setTimeout(() => setBackupFeedback({ type: "idle" }), 4000);
+          }
+        } catch (err: any) {
+          setBackupFeedback({
+            type: "error",
+            msg: "خطا در بارگذاری فایل پشتیبان: " + (err?.message || "فرمت JSON نامعتبر")
+          });
+        }
+      };
+    }
+  };
+
+  const getGitLabConfigSnippet = () => {
+    const currentDb = {
+      settings: {
+        ...settings,
+        fundName: editFundName,
+        monthlyAmount: Number(editPriceAmount) || settings.monthlyAmount,
+        savingsAmount: Number(editSavingsAmount) || settings.savingsAmount,
+        adminPassword: editAdminPassword,
+        logoUrl: editLogoUrl,
+        goldFundValueToman: Number(editGoldFundValue) || settings.goldFundValueToman,
+        goldInvestmentNote: editGoldInvestmentNote,
+        telegramBotToken: editTelegramBotToken,
+        telegramChatId: editTelegramChatId,
+        enableTelegramNotification: editEnableTelegram,
+        telegramMessageTemplate: editTelegramMessageTemplate
+      },
+      members,
+      payments,
+      lotteries,
+      cycles
+    };
+    return JSON.stringify(currentDb, null, 2);
+  };
 
   // Gold Fund Valuation & Note
   const [editGoldFundValue, setEditGoldFundValue] = useState<string>((settings.goldFundValueToman || 18500000).toString());
@@ -1098,6 +1225,157 @@ export default function AdminPanel({
                 </div>
               </div>
             </div>
+
+            {/* DATABASE MANAGEMENT & GITLAB REPO HUB */}
+            <div className="bg-white p-6 rounded-xl border border-indigo-200 shadow-sm space-y-5" id="database-gitlab-hub">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-indigo-100 gap-3">
+                <div className="flex items-center gap-2.5">
+                  <div className="p-2 bg-indigo-50 text-indigo-700 rounded-lg border border-indigo-100">
+                    <Database className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-black text-slate-800">مرکز پشتیبان‌گیری، بازیابی و پایگاه داده گیت‌لب (GitLab Hub)</h4>
+                    <p className="text-[11px] text-slate-500">حفاظت کامل از اطلاعات واقعی صندوق، لوگو، پرداخت‌ها و تنظیمات هنگام کامیت روی گیت‌لب</p>
+                  </div>
+                </div>
+
+                <span className="text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-150 px-2.5 py-1 rounded w-fit">
+                  تضمین عدم حذف داده‌ها
+                </span>
+              </div>
+
+              {/* Informative Security Notice */}
+              <div className="p-4 bg-indigo-50/70 border border-indigo-100 rounded-xl space-y-2 text-xs text-indigo-950 font-sans">
+                <div className="flex items-center gap-1.5 font-bold text-indigo-900">
+                  <Info className="w-4 h-4 text-indigo-600 shrink-0" />
+                  <span>توضیحات نحوه حفظ داده‌ها در محیط واقعی و گیت‌لب:</span>
+                </div>
+                <p className="text-[11px] leading-relaxed text-indigo-900 pr-1">
+                  اطلاعاتی که در این برنامه ثبت یا ویرایش می‌کنید (شامل اعضا، پرداخت‌ها، لوگو، دوره‌ها و ارزش روز طلا) در <b>حافظه دائمی مرورگر (LocalStorage)</b> ذخیره می‌گردد و با کامیت کردن سورس در گیت‌لب هیچ تغییری در دیتابیس فعال شما ایجاد نمی‌شود. جهت انتقال آسان اطلاعات یا تغییر سیستم می‌توانید از امکانات زیر استفاده نمایید:
+                </p>
+              </div>
+
+              {/* Action Buttons Grid */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
+                {/* 1. Download Backup */}
+                <button
+                  type="button"
+                  onClick={handleDownloadBackupJson}
+                  className="p-3.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold text-xs flex flex-col items-center justify-center gap-2 transition-all shadow-sm cursor-pointer group"
+                >
+                  <Download className="w-5 h-5 group-hover:-translate-y-0.5 transition-transform" />
+                  <span>دانلود نسخه پشتیبان دیتابیس (JSON)</span>
+                  <span className="text-[10px] text-indigo-200 font-normal">ذخیره کلیه اعضا، پرداخت‌ها، لوگو و تنظیمات</span>
+                </button>
+
+                {/* 2. Upload / Restore Backup */}
+                <label className="p-3.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-xs flex flex-col items-center justify-center gap-2 transition-all shadow-sm cursor-pointer group text-center">
+                  <Upload className="w-5 h-5 group-hover:-translate-y-0.5 transition-transform" />
+                  <span>بازیابی و بارگذاری دیتابیس</span>
+                  <span className="text-[10px] text-emerald-100 font-normal">بارگذاری فایل بک‌آپ JSON روی هر دستگاه</span>
+                  <input
+                    type="file"
+                    accept=".json,application/json"
+                    onChange={handleFileUploadBackup}
+                    className="hidden"
+                  />
+                </label>
+
+                {/* 3. Export Code for GitLab */}
+                <button
+                  type="button"
+                  onClick={() => setIsGitLabExportModalOpen(true)}
+                  className="p-3.5 bg-slate-800 hover:bg-slate-900 text-white rounded-xl font-bold text-xs flex flex-col items-center justify-center gap-2 transition-all shadow-sm cursor-pointer group"
+                >
+                  <FileCode className="w-5 h-5 text-indigo-300 group-hover:-translate-y-0.5 transition-transform" />
+                  <span>استخراج کد تنظیمات گیت‌لب</span>
+                  <span className="text-[10px] text-slate-300 font-normal">مشاهده و کپی کدهای دیتابیس واقعی</span>
+                </button>
+              </div>
+
+              {/* Status Message */}
+              {backupFeedback.type !== "idle" && (
+                <div className={`p-3 rounded-lg text-xs font-bold flex items-center gap-2 ${
+                  backupFeedback.type === "success" 
+                    ? "bg-emerald-50 text-emerald-800 border border-emerald-200" 
+                    : "bg-rose-50 text-rose-800 border border-rose-200"
+                }`}>
+                  {backupFeedback.type === "success" ? (
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                  ) : (
+                    <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                  )}
+                  <span>{backupFeedback.msg}</span>
+                </div>
+              )}
+            </div>
+
+            {/* GitLab Export Modal */}
+            {isGitLabExportModalOpen && (
+              <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+                <div className="bg-white rounded-2xl border border-slate-200 max-w-2xl w-full p-6 shadow-2xl space-y-4 max-h-[90vh] flex flex-col">
+                  <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                    <div className="flex items-center gap-2">
+                      <FileCode className="w-5 h-5 text-indigo-600" />
+                      <h3 className="text-sm font-black text-slate-800">کدهای کانفیگ پایگاه داده برای گیت‌لب (GitLab Seed)</h3>
+                    </div>
+                    <button
+                      onClick={() => setIsGitLabExportModalOpen(false)}
+                      className="p-1 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors"
+                    >
+                      <X className="w-5 h-5" />
+                    </button>
+                  </div>
+
+                  <p className="text-xs text-slate-500 leading-relaxed font-sans">
+                    اگر مایل هستید اطلاعات واقعی فعلی (اعضا، سهم‌ها، لوگو و تنظیمات) به عنوان دیتای پیش‌فرض در سورس‌کد گیت‌لب قرار گیرد، می‌توانید ساختار زیر را کپی کرده یا در فایل داده‌های اولیه پروژه جایگذاری نمایید:
+                  </p>
+
+                  <div className="relative flex-1 min-h-0 bg-slate-900 rounded-xl p-4 overflow-hidden flex flex-col">
+                    <div className="flex items-center justify-between text-[11px] text-slate-400 pb-2 border-b border-slate-800">
+                      <span className="font-mono">database_snapshot.json</span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          navigator.clipboard.writeText(getGitLabConfigSnippet());
+                          setIsCopiedGitLabConfig(true);
+                          setTimeout(() => setIsCopiedGitLabConfig(false), 2500);
+                        }}
+                        className="px-2.5 py-1 bg-indigo-600 hover:bg-indigo-500 text-white rounded text-[10px] font-bold flex items-center gap-1 cursor-pointer transition-all"
+                      >
+                        {isCopiedGitLabConfig ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                        <span>{isCopiedGitLabConfig ? "کپی شد!" : "کپی تمام کدها"}</span>
+                      </button>
+                    </div>
+                    <pre className="text-[10px] font-mono text-indigo-200 overflow-auto p-2 leading-relaxed flex-1 mt-2 text-left" dir="ltr">
+                      {getGitLabConfigSnippet()}
+                    </pre>
+                  </div>
+
+                  <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
+                    <button
+                      type="button"
+                      onClick={() => setIsGitLabExportModalOpen(false)}
+                      className="px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs cursor-pointer"
+                    >
+                      بستن پنجره
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        navigator.clipboard.writeText(getGitLabConfigSnippet());
+                        setIsCopiedGitLabConfig(true);
+                        setTimeout(() => setIsCopiedGitLabConfig(false), 2500);
+                      }}
+                      className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-xs flex items-center gap-1.5 cursor-pointer shadow-sm"
+                    >
+                      {isCopiedGitLabConfig ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                      <span>{isCopiedGitLabConfig ? "کپی شد!" : "کپی کردن کدها در کلیپ‌بورد"}</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* TELEGRAM INTEGRATION SECTION */}
             <div className="bg-white p-6 rounded-xl border border-sky-200 shadow-sm space-y-5">
