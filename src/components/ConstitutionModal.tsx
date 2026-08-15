@@ -70,14 +70,19 @@ export default function ConstitutionModal({ isOpen, onClose, fundName }: Constit
               <Users className="w-4.5 h-4.5" />
             </div>
             <div>
-              <h4 className="font-black text-teal-900 mb-1">هیات امنای سه نفره صندوق:</h4>
+              <h4 className="font-black text-teal-900 mb-1">اعضای هیات موسس و هیات امنای صندوق:</h4>
               <p className="text-slate-700">
-                بر اساس توافق همه‌جانبه اعضای صندوق، افراد مسئول زیر به عنوان هیات امنا ناظر بر فرآیندهای مالی صندوق انتخاب شده‌اند:
+                بر اساس توافق اعضای صندوق، اعضای هیات موسس و ناظر بر فرآیندهای مالی صندوق عبارتند از:
               </p>
               <div className="mt-2 flex flex-wrap gap-2">
-                {["اکبر رضوانیان", "صادق کاظمیان", "ترگل انوری نژاد"].map((trustee) => (
-                  <span key={trustee} className="bg-teal-200/50 text-teal-950 font-bold px-3 py-1 rounded text-xs border border-teal-200">
-                    {trustee}
+                {[
+                  { title: "خانه برزک", rep: "ترگل انوری نژاد" },
+                  { title: "خونه نقلی", rep: "اکبر رضوانیان" },
+                  { title: "ارگ رادکان", rep: "صادق کاظمیان" }
+                ].map((founder) => (
+                  <span key={founder.title} className="bg-teal-200/60 text-teal-950 font-bold px-3 py-1 rounded-lg text-xs border border-teal-300 flex items-center gap-1.5 shadow-2xs">
+                    <span className="font-black">{founder.title}</span>
+                    <span className="text-[10px] text-teal-800 font-normal">({founder.rep})</span>
                   </span>
                 ))}
               </div>

@@ -92,6 +92,8 @@ export default function CycleManager({
   const isCurrentCycleLocked = currentCycle?.status === "completed";
 
   const [editTitle, setEditTitle] = useState(currentCycle?.title || "");
+  const [editMonthlyAmount, setEditMonthlyAmount] = useState<string>((currentCycle?.monthlyAmount || settings.monthlyAmount || 5500000).toString());
+  const [editSavingsAmount, setEditSavingsAmount] = useState<string>((currentCycle?.savingsAmount || settings.savingsAmount || 500000).toString());
   const [editStartDate, setEditStartDate] = useState(currentCycle?.startShamsiDate || "");
   const [editEndDate, setEditEndDate] = useState(currentCycle?.endShamsiDate || "");
   const [editNotes, setEditNotes] = useState(currentCycle?.notes || "");
@@ -100,12 +102,14 @@ export default function CycleManager({
   useEffect(() => {
     if (currentCycle) {
       setEditTitle(currentCycle.title);
+      setEditMonthlyAmount((currentCycle.monthlyAmount || settings.monthlyAmount || 5500000).toString());
+      setEditSavingsAmount((currentCycle.savingsAmount || settings.savingsAmount || 500000).toString());
       setEditStartDate(currentCycle.startShamsiDate);
       setEditEndDate(currentCycle.endShamsiDate || "");
       setEditNotes(currentCycle.notes || "");
       setEditGoldNote(currentCycle.goldInvestmentNote || "");
     }
-  }, [currentCycle]);
+  }, [currentCycle, settings.monthlyAmount, settings.savingsAmount]);
 
   const handleToggleMemberSelect = (memberId: string) => {
     if (selectedMemberIds.includes(memberId)) {
@@ -162,6 +166,8 @@ export default function CycleManager({
 
     onUpdateCycle(currentCycle.id, {
       title: editTitle.trim(),
+      monthlyAmount: Number(editMonthlyAmount) || currentCycle.monthlyAmount,
+      savingsAmount: Number(editSavingsAmount) || currentCycle.savingsAmount,
       startShamsiDate: editStartDate.trim(),
       endShamsiDate: editEndDate.trim(),
       notes: editNotes.trim(),
@@ -919,6 +925,33 @@ export default function CycleManager({
                   required
                   className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg font-bold text-slate-800 focus:outline-none focus:border-teal-700"
                 />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">مبلغ قسط ثابت ماهانه (تومان):</label>
+                  <input
+                    type="number"
+                    step="500000"
+                    value={editMonthlyAmount}
+                    onChange={(e) => setEditMonthlyAmount(e.target.value)}
+                    required
+                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg font-bold text-slate-800 focus:outline-none focus:border-teal-700"
+                  />
+                  <span className="text-[10px] text-slate-400 mt-0.5 block">{formatCurrency(Number(editMonthlyAmount) || 0)}</span>
+                </div>
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">مبلغ پس‌انداز ماهانه (تومان):</label>
+                  <input
+                    type="number"
+                    step="100000"
+                    value={editSavingsAmount}
+                    onChange={(e) => setEditSavingsAmount(e.target.value)}
+                    required
+                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg font-bold text-slate-800 focus:outline-none focus:border-teal-700"
+                  />
+                  <span className="text-[10px] text-teal-600 mt-0.5 block">{formatCurrency(Number(editSavingsAmount) || 0)}</span>
+                </div>
               </div>
 
               <div className="grid grid-cols-2 gap-3">

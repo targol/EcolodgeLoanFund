@@ -248,7 +248,16 @@ export default function App() {
 
   const handleUpdateCycle = (cycleId: string, updatedFields: Partial<FundCycle>) => {
     const updatedCycles = cycles.map(c => c.id === cycleId ? { ...c, ...updatedFields } : c);
-    persistState(members, payments, lotteries, settings, updatedCycles);
+    const targetCycle = updatedCycles.find(c => c.id === cycleId);
+    let updatedSettings = settings;
+    if (targetCycle && targetCycle.status === "active") {
+      updatedSettings = {
+        ...settings,
+        monthlyAmount: updatedFields.monthlyAmount !== undefined ? updatedFields.monthlyAmount : settings.monthlyAmount,
+        savingsAmount: updatedFields.savingsAmount !== undefined ? updatedFields.savingsAmount : settings.savingsAmount,
+      };
+    }
+    persistState(members, payments, lotteries, updatedSettings, updatedCycles);
   };
 
   const handleSetActiveCycle = (cycleNumber: number) => {
@@ -487,7 +496,23 @@ export default function App() {
   // Update Settings
   const handleUpdateSettings = (newSettings: Partial<FundSettings>) => {
     const updatedSettings = { ...settings, ...newSettings };
-    persistState(members, payments, lotteries, updatedSettings);
+    
+    // Also propagate changes (like monthlyAmount, savingsAmount) to the currently active cycle
+    let updatedCycles = cycles;
+    if (newSettings.monthlyAmount !== undefined || newSettings.savingsAmount !== undefined) {
+      updatedCycles = cycles.map(c => {
+        if (c.status === "active") {
+          return {
+            ...c,
+            monthlyAmount: newSettings.monthlyAmount !== undefined ? newSettings.monthlyAmount : c.monthlyAmount,
+            savingsAmount: newSettings.savingsAmount !== undefined ? newSettings.savingsAmount : c.savingsAmount,
+          };
+        }
+        return c;
+      });
+    }
+
+    persistState(members, payments, lotteries, updatedSettings, updatedCycles);
   };
 
   // Reset core cycle to base state

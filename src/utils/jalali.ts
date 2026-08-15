@@ -233,7 +233,7 @@ export function getInitialMockData(): {
       avatarColor: "from-sky-500 to-blue-600",
       isAppliedForLoan: false,
       isAppliedForEmergency: false,
-      participatedCycles: [1, 2, 3],
+      participatedCycles: [1, 3],
       currentCycleShares: 1
     },
     {
@@ -249,7 +249,7 @@ export function getInitialMockData(): {
       avatarColor: "from-violet-500 to-indigo-600",
       isAppliedForLoan: false,
       isAppliedForEmergency: false,
-      participatedCycles: [1, 2, 3],
+      participatedCycles: [1, 3],
       currentCycleShares: 1
     },
     {
@@ -265,7 +265,7 @@ export function getInitialMockData(): {
       avatarColor: "from-fuchsia-500 to-purple-600",
       isAppliedForLoan: false,
       isAppliedForEmergency: false,
-      participatedCycles: [1, 2, 3],
+      participatedCycles: [1, 3],
       currentCycleShares: 1
     },
     {
@@ -281,7 +281,7 @@ export function getInitialMockData(): {
       avatarColor: "from-cyan-500 to-blue-500",
       isAppliedForLoan: false,
       isAppliedForEmergency: false,
-      participatedCycles: [1, 2, 3],
+      participatedCycles: [1, 3],
       currentCycleShares: 1
     },
     {
@@ -527,7 +527,7 @@ export function getInitialMockData(): {
       savingsAmount: 0,
       totalMonths: 8,
       memberIds: [
-        "mem_1", "mem_2", "mem_3", "mem_4", "mem_5", "mem_6", "mem_7", "mem_9"
+        "mem_1", "mem_2", "mem_3", "mem_9"
       ],
       notes: "دوره ۸ ماهه دوم با حضور ۸ عضو و اقساط ماهانه ۵ میلیون تومان (تسهیلات ۴۰ میلیون تومانی)",
       pastWinners: [
