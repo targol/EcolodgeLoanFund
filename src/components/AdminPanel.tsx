@@ -1226,7 +1226,7 @@ export default function AdminPanel({
               </div>
             </div>
 
-            {/* DATABASE MANAGEMENT & GITLAB REPO HUB */}
+            {/* DATABASE MANAGEMENT & GITLAB & CLOUDFLARE HUB */}
             <div className="bg-white p-6 rounded-xl border border-indigo-200 shadow-sm space-y-5" id="database-gitlab-hub">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-indigo-100 gap-3">
                 <div className="flex items-center gap-2.5">
@@ -1234,25 +1234,38 @@ export default function AdminPanel({
                     <Database className="w-5 h-5" />
                   </div>
                   <div>
-                    <h4 className="text-sm font-black text-slate-800">مرکز پشتیبان‌گیری، بازیابی و پایگاه داده گیت‌لب (GitLab Hub)</h4>
-                    <p className="text-[11px] text-slate-500">حفاظت کامل از اطلاعات واقعی صندوق، لوگو، پرداخت‌ها و تنظیمات هنگام کامیت روی گیت‌لب</p>
+                    <h4 className="text-sm font-black text-slate-800">مرکز پایگاه داده ابری کلودفلر و مخزن گیت‌لب (Cloudflare & GitLab Hub)</h4>
+                    <p className="text-[11px] text-slate-500">حفاظت دائمی از داده‌ها و اتصال به سرور ابری کلودفلر بدون وابستگی به تغییرات کد</p>
                   </div>
                 </div>
 
-                <span className="text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-150 px-2.5 py-1 rounded w-fit">
-                  تضمین عدم حذف داده‌ها
-                </span>
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 px-2.5 py-1 rounded flex items-center gap-1 w-fit">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                    همگام‌سازی ابری فعال
+                  </span>
+                </div>
               </div>
 
               {/* Informative Security Notice */}
-              <div className="p-4 bg-indigo-50/70 border border-indigo-100 rounded-xl space-y-2 text-xs text-indigo-950 font-sans">
+              <div className="p-4 bg-gradient-to-r from-indigo-50/90 to-sky-50/80 border border-indigo-100 rounded-xl space-y-3 text-xs text-indigo-950 font-sans">
                 <div className="flex items-center gap-1.5 font-bold text-indigo-900">
                   <Info className="w-4 h-4 text-indigo-600 shrink-0" />
-                  <span>توضیحات نحوه حفظ داده‌ها در محیط واقعی و گیت‌لب:</span>
+                  <span>نحوه عملکرد دیتابیس پایدار بر روی کلودفلر (Cloudflare Pages):</span>
                 </div>
                 <p className="text-[11px] leading-relaxed text-indigo-900 pr-1">
-                  اطلاعاتی که در این برنامه ثبت یا ویرایش می‌کنید (شامل اعضا، پرداخت‌ها، لوگو، دوره‌ها و ارزش روز طلا) در <b>حافظه دائمی مرورگر (LocalStorage)</b> ذخیره می‌گردد و با کامیت کردن سورس در گیت‌لب هیچ تغییری در دیتابیس فعال شما ایجاد نمی‌شود. جهت انتقال آسان اطلاعات یا تغییر سیستم می‌توانید از امکانات زیر استفاده نمایید:
+                  سامانه به صورت دو لایه طراحی شده است: <b>۱) لایه ابری Cloudflare Pages Functions</b> (دیتابیس ابری KV/D1 که با کامیت‌های گیت‌لب هرگز پاک نمی‌شود) و <b>۲) لایه کش سریع مرورگر</b>. هر پرداختی که ثبت شود هم در فضای ابری ذخیره شده و هم در مرورگر در دسترس است.
                 </p>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-2 pt-1">
+                  <div className="bg-white/80 p-2.5 rounded-lg border border-indigo-100/60 text-[11px]">
+                    <span className="font-bold text-indigo-900 block mb-0.5">☁️ اتصال مستقیم Cloudflare Pages:</span>
+                    کدهای آماده بک‌اند در مسیر <code className="text-indigo-700 font-mono">functions/api/data.ts</code> قرار دارند و به محض استقرار روی Cloudflare فعال می‌شوند.
+                  </div>
+                  <div className="bg-white/80 p-2.5 rounded-lg border border-indigo-100/60 text-[11px]">
+                    <span className="font-bold text-indigo-900 block mb-0.5">🔒 امنیت کامل در گیت‌لب:</span>
+                    تغییر یا پوش کدهای جدید در مخزن گیت‌لب، دیتابیس مستقل ابری را بازنویسی نخواهد کرد.
+                  </div>
+                </div>
               </div>
 
               {/* Action Buttons Grid */}
@@ -1288,7 +1301,7 @@ export default function AdminPanel({
                   className="p-3.5 bg-slate-800 hover:bg-slate-900 text-white rounded-xl font-bold text-xs flex flex-col items-center justify-center gap-2 transition-all shadow-sm cursor-pointer group"
                 >
                   <FileCode className="w-5 h-5 text-indigo-300 group-hover:-translate-y-0.5 transition-transform" />
-                  <span>استخراج کد تنظیمات گیت‌لب</span>
+                  <span>استخراج داده‌ها برای سورس گیت‌لب</span>
                   <span className="text-[10px] text-slate-300 font-normal">مشاهده و کپی کدهای دیتابیس واقعی</span>
                 </button>
               </div>

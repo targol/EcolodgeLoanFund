@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from "react";
 import { Member, Payment, LotteryResult, FundSettings, FundCycle, PERS_MONTH_NAMES } from "./types";
 import { getInitialMockData, calculatePaymentScore, toPersianDigits, formatCurrency, gregorianToJalali } from "./utils/jalali";
+import { cloudSyncService, CloudSyncStatus } from "./services/cloudflareSync";
 import FundOverview from "./components/FundOverview";
 import AdminPanel from "./components/AdminPanel";
 import MemberPanel from "./components/MemberPanel";
 import ConstitutionModal from "./components/ConstitutionModal";
 import { 
-  Lock, User, Landmark, HelpCircle, ShieldCheck, UserCheck, Key, Eye, EyeOff, AlertCircle
+  Lock, User, Landmark, HelpCircle, ShieldCheck, UserCheck, Key, Eye, EyeOff, AlertCircle, Cloud, RefreshCw
 } from "lucide-react";
 
 export default function App() {
@@ -56,7 +57,19 @@ export default function App() {
   const [adminAuthError, setAdminAuthError] = useState<string>("");
   const [showAdminPassInput, setShowAdminPassInput] = useState<boolean>(false);
 
-  // Initialize state from localStorage or load high fidelity mock data
+  // Cloudflare & Remote Database Sync State
+  const [cloudSyncStatus, setCloudSyncStatus] = useState<CloudSyncStatus>("synced");
+  const [cloudSyncDetail, setCloudSyncDetail] = useState<string>("");
+
+  useEffect(() => {
+    const unsub = cloudSyncService.subscribe((status, detail) => {
+      setCloudSyncStatus(status);
+      if (detail) setCloudSyncDetail(detail);
+    });
+    return unsub;
+  }, []);
+
+  // Initialize state from localStorage or load high fidelity mock data + check Cloudflare
   useEffect(() => {
     const CURRENT_VERSION = "v6.0_multi_cycles_gold";
     const savedVersion = localStorage.getItem("mehr_fund_db_version");
@@ -143,6 +156,24 @@ export default function App() {
       localStorage.setItem("mehr_fund_settings", JSON.stringify(defaults.settings));
       localStorage.setItem("mehr_fund_cycles", JSON.stringify(defaults.cycles || []));
     }
+
+    // Async check remote Cloudflare storage for latest persisted cloud data
+    cloudSyncService.fetchRemoteData().then(remoteData => {
+      if (remoteData && remoteData.members && Array.isArray(remoteData.members)) {
+        setMembers(remoteData.members);
+        if (remoteData.payments) setPayments(remoteData.payments);
+        if (remoteData.lotteries) setLotteries(remoteData.lotteries);
+        if (remoteData.settings) setSettings(remoteData.settings);
+        if (remoteData.cycles) setCycles(remoteData.cycles);
+
+        // Update local cache
+        localStorage.setItem("mehr_fund_members", JSON.stringify(remoteData.members));
+        if (remoteData.payments) localStorage.setItem("mehr_fund_payments", JSON.stringify(remoteData.payments));
+        if (remoteData.lotteries) localStorage.setItem("mehr_fund_lotteries", JSON.stringify(remoteData.lotteries));
+        if (remoteData.settings) localStorage.setItem("mehr_fund_settings", JSON.stringify(remoteData.settings));
+        if (remoteData.cycles) localStorage.setItem("mehr_fund_cycles", JSON.stringify(remoteData.cycles));
+      }
+    });
   }, []);
 
   // Dynamic Favicon and Title Update based on Settings
@@ -175,6 +206,7 @@ export default function App() {
     newSettings: FundSettings,
     newCycles?: FundCycle[]
   ) => {
+    const finalCycles = newCycles || cycles;
     setMembers(newMembers);
     setPayments(newPayments);
     setLotteries(newLotteries);
@@ -188,6 +220,15 @@ export default function App() {
     localStorage.setItem("mehr_fund_payments", JSON.stringify(newPayments));
     localStorage.setItem("mehr_fund_lotteries", JSON.stringify(newLotteries));
     localStorage.setItem("mehr_fund_settings", JSON.stringify(newSettings));
+
+    // Save to Cloudflare API / Cloud storage asynchronously
+    cloudSyncService.saveToCloud({
+      members: newMembers,
+      payments: newPayments,
+      lotteries: newLotteries,
+      settings: newSettings,
+      cycles: finalCycles
+    });
   };
 
   // Cycle management handlers
