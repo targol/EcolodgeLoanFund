@@ -5,7 +5,7 @@ import { sendTelegramMessage, formatTelegramMessage, DEFAULT_TELEGRAM_TEMPLATE }
 import { 
   Users, UserPlus, Coins, Calendar, Check, X, AlertCircle, Trash2, Edit2,
   Settings as SettingsIcon, Save, RefreshCw, Trophy, Info, Key, Shield, Eye, EyeOff, Filter,
-  Send, Bot, MessageSquare, Loader2, CheckCircle2, Radio
+  Send, Bot, MessageSquare, Loader2, CheckCircle2, Radio, Image as ImageIcon, Upload, Link as LinkIcon
 } from "lucide-react";
 import LotteryDraw from "./LotteryDraw";
 
@@ -71,6 +71,9 @@ export default function AdminPanel({
   const [editAdminPassword, setEditAdminPassword] = useState<string>(settings.adminPassword || "admin");
   const [showAdminPass, setShowAdminPass] = useState(false);
 
+  // Fund Custom Logo & Favicon
+  const [editLogoUrl, setEditLogoUrl] = useState<string>(settings.logoUrl || "");
+
   // Telegram Integration States
   const [editTelegramBotToken, setEditTelegramBotToken] = useState<string>(settings.telegramBotToken || "");
   const [editTelegramChatId, setEditTelegramChatId] = useState<string>(settings.telegramChatId || "");
@@ -114,6 +117,7 @@ export default function AdminPanel({
     setEditLotteryDayOfMonth(settings.lotteryDayOfMonth || 1);
     setEditAutoDrawOnFirst(settings.autoDrawOnFirstOfMonth ?? true);
     setEditAdminPassword(settings.adminPassword || "admin");
+    setEditLogoUrl(settings.logoUrl || "");
     setEditTelegramBotToken(settings.telegramBotToken || "");
     setEditTelegramChatId(settings.telegramChatId || "");
     setEditEnableTelegram(settings.enableTelegramNotification ?? true);
@@ -180,12 +184,13 @@ export default function AdminPanel({
       lotteryDayOfMonth: editLotteryDayOfMonth,
       autoDrawOnFirstOfMonth: editAutoDrawOnFirst,
       adminPassword: editAdminPassword,
+      logoUrl: editLogoUrl,
       telegramBotToken: editTelegramBotToken,
       telegramChatId: editTelegramChatId,
       enableTelegramNotification: editEnableTelegram,
       telegramMessageTemplate: editTelegramMessageTemplate,
     });
-    alert("تنظیمات عمومی و اطلاع‌رسانی تلگرام با موفقیت ذخیره گردید!");
+    alert("تنظیمات عمومی، لوگو و اطلاع‌رسانی با موفقیت ذخیره گردید!");
   };
   const totalSavingsPaidAllTime = payments
     .filter(p => p.status === "paid")
@@ -794,6 +799,89 @@ export default function AdminPanel({
                       onChange={(e) => setEditFundName(e.target.value)}
                       className="w-full p-2.5 border border-slate-205 bg-white text-slate-800 font-bold rounded text-xs focus:outline-none focus:border-teal-705"
                     />
+                  </div>
+
+                  {/* Fund Logo / Favicon Upload & URL Setting */}
+                  <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 space-y-3 font-sans">
+                    <div className="flex items-center justify-between">
+                      <label className="text-[11px] font-black text-slate-700 flex items-center gap-1.5">
+                        <ImageIcon className="w-4 h-4 text-teal-700" />
+                        <span>لوگوی اختصاصی صندوق و آیکون مرورگر (Favicon)</span>
+                      </label>
+                      {editLogoUrl && (
+                        <button
+                          type="button"
+                          onClick={() => setEditLogoUrl("")}
+                          className="text-[10px] text-rose-600 hover:text-rose-800 font-bold cursor-pointer"
+                        >
+                          حذف و بازگشت به پیش‌فرض
+                        </button>
+                      )}
+                    </div>
+
+                    <div className="flex flex-col sm:flex-row items-center gap-4">
+                      {/* Logo Preview box */}
+                      <div className="w-16 h-16 rounded-xl border-2 border-dashed border-slate-300 bg-white flex items-center justify-center overflow-hidden shrink-0 shadow-inner">
+                        {editLogoUrl ? (
+                          <img 
+                            src={editLogoUrl} 
+                            alt="پیش‌نمایش لوگو" 
+                            className="w-full h-full object-contain p-1"
+                            onError={() => alert("آدرس تصویر معتبر نیست یا قابل بارگذاری نمی‌باشد.")}
+                          />
+                        ) : (
+                          <div className="text-center p-1">
+                            <ImageIcon className="w-5 h-5 text-slate-400 mx-auto" />
+                            <span className="text-[8px] text-slate-400 block mt-0.5 font-bold">لوگوی پیش‌فرض</span>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Upload / Link inputs */}
+                      <div className="flex-1 w-full space-y-2">
+                        <div className="flex gap-2">
+                          <label className="flex-1 py-2 px-3 bg-white hover:bg-teal-50 text-teal-900 border border-slate-250 hover:border-teal-300 rounded-lg text-[11px] font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 shadow-2xs">
+                            <Upload className="w-3.5 h-3.5 text-teal-700" />
+                            <span>بارگذاری تصویر لوگو از سیستم</span>
+                            <input
+                              type="file"
+                              accept="image/*"
+                              className="hidden"
+                              onChange={(e) => {
+                                const file = e.target.files?.[0];
+                                if (file) {
+                                  if (file.size > 2 * 1024 * 1024) {
+                                    alert("حجم تصویر نباید بیشتر از ۲ مگابایت باشد.");
+                                    return;
+                                  }
+                                  const reader = new FileReader();
+                                  reader.onloadend = () => {
+                                    setEditLogoUrl(reader.result as string);
+                                  };
+                                  reader.readAsDataURL(file);
+                                }
+                              }}
+                            />
+                          </label>
+                        </div>
+
+                        <div className="flex items-center gap-1.5">
+                          <LinkIcon className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                          <input
+                            type="text"
+                            placeholder="یا وارد کردن لینک مستقیم تصویر (https://...)"
+                            value={editLogoUrl.startsWith("data:") ? "تصویر بارگذاری شده از سیستم" : editLogoUrl}
+                            onChange={(e) => setEditLogoUrl(e.target.value)}
+                            disabled={editLogoUrl.startsWith("data:")}
+                            className="w-full p-1.5 px-2.5 border border-slate-200 bg-white text-slate-800 text-[11px] font-mono rounded focus:outline-none focus:border-teal-600"
+                            dir="ltr"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                    <span className="text-[9.5px] text-slate-500 block leading-tight">
+                      💡 با تنظیم لوگو، تصویر آن در هدر اصلی سامانه و همچنین به عنوان تب‌بار (Favicon) مرورگر اعضا به صورت خودکار نمایش داده می‌شود.
+                    </span>
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">

@@ -54,6 +54,8 @@ export interface FundSettings {
   telegramChatId?: string;
   telegramMessageTemplate?: string;
   enableTelegramNotification?: boolean;
+  // Custom Fund Logo & Favicon
+  logoUrl?: string;
 }
 
 export const PERS_MONTH_NAMES = [

@@ -135,6 +135,28 @@ export default function App() {
     }
   }, []);
 
+  // Dynamic Favicon and Title Update based on Settings
+  useEffect(() => {
+    if (settings.fundName) {
+      document.title = settings.fundName;
+    }
+
+    let link: HTMLLinkElement | null = document.querySelector("link[rel*='icon']");
+    if (!link) {
+      link = document.createElement("link");
+      link.rel = "shortcut icon";
+      document.getElementsByTagName("head")[0].appendChild(link);
+    }
+
+    if (settings.logoUrl) {
+      link.href = settings.logoUrl;
+    } else {
+      // Create a clean default SVG favicon with Teal theme
+      const svgIcon = `data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><rect width=%22100%22 height=%22100%22 rx=%2220%22 fill=%22%23134e4a%22/><text y=%2265%22 font-size=%2250%22 font-weight=%22bold%22 text-anchor=%22middle%22 x=%2250%22 fill=%22white%22 font-family=%22sans-serif%22>م</text></svg>`;
+      link.href = svgIcon;
+    }
+  }, [settings.logoUrl, settings.fundName]);
+
   // Helper to persist current state
   const persistState = (newMembers: Member[], newPayments: Payment[], newLotteries: LotteryResult[], newSettings: FundSettings) => {
     setMembers(newMembers);
@@ -402,8 +424,16 @@ export default function App() {
       <header className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 pb-2" id="app-header">
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 flex flex-col md:flex-row justify-between items-center gap-6">
           <div className="flex items-center gap-4 text-center md:text-right">
-            <div className="w-14 h-14 rounded bg-teal-900 text-white flex items-center justify-center shadow-lg shadow-teal-900/10">
-              <Landmark className="w-8 h-8" />
+            <div className="w-14 h-14 rounded-xl bg-teal-900 text-white flex items-center justify-center shadow-lg shadow-teal-900/10 overflow-hidden border border-teal-800 shrink-0">
+              {settings.logoUrl ? (
+                <img 
+                  src={settings.logoUrl} 
+                  alt={settings.fundName} 
+                  className="w-full h-full object-contain bg-white p-1"
+                />
+              ) : (
+                <Landmark className="w-8 h-8" />
+              )}
             </div>
             <div>
               <div className="flex flex-wrap items-center gap-2 justify-center md:justify-start">
