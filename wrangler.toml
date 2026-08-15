@@ -1,0 +1,9 @@
+name = "sandogh-bome"
+compatibility_date = "2024-01-01"
+
+[assets]
+directory = "./dist"
+
+[[kv_namespaces]]
+binding = "SANDOGH_KV"
+id = "YOUR_KV_NAMESPACE_ID"
