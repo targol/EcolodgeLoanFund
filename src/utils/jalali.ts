@@ -1,4 +1,4 @@
-import { Member, Payment, LotteryResult, FundSettings, PERS_MONTH_NAMES } from "../types";
+import { Member, Payment, LotteryResult, FundSettings, FundCycle, PERS_MONTH_NAMES } from "../types";
 
 // Convert English numbers to Persian digits
 export function toPersianDigits(num: string | number | undefined | null): string {
@@ -139,16 +139,20 @@ export function getInitialMockData(): {
   payments: Payment[];
   lotteries: LotteryResult[];
   settings: FundSettings;
+  cycles: FundCycle[];
 } {
   const settings: FundSettings = {
     fundName: "صندوق قرض‌الحسنه و پس‌انداز حامی بومگردی",
-    monthlyAmount: 5500000, // 5,500,000 Toman Core Installment
-    savingsAmount: 500000,  // 500,000 Toman Savings Portion
+    monthlyAmount: 5000000, // 5,000,000 Toman Core Installment
+    savingsAmount: 500000,  // 500,000 Toman Savings Portion (invested in Gold Fund)
+    currentCycleNumber: 3,  // Currently in Round 3
     lotteryDayOfMonth: 1,   // Automatic lottery on 1st day of month
     autoDrawOnFirstOfMonth: true,
     currentYear: 1405,
     currentMonthIndex: 5,   // Shahrivar 1405 (index 5)
     adminPassword: "admin",
+    goldInvestmentNote: "مبالغ پس‌انداز ماهانه (۵۰۰,۰۰۰ تومان در ماه به ازای هر سهم) در صندوق طلا سرمایه‌گذاری شده است. ارزش روز و میزان نهایی پس‌انداز انباشته پس از اتمام دوره محاسبه و در مورد نحوه انتقال آن به دوره‌های آینده تصمیم‌گیری خواهد شد.",
+    goldFundValueToman: 18500000, // Estimated current valuation of accumulated gold investment
     telegramBotToken: "",
     telegramChatId: "",
     enableTelegramNotification: true,
@@ -170,9 +174,10 @@ export function getInitialMockData(): {
     {
       id: "mem_1",
       name: "ترگل انوری نژاد - خانه برزک",
+      representativeName: "ترگل",
       phone: "۰۹۱۹۸۷۶۵۴۳۲",
       password: "123",
-      joinDateShamsi: "۱۴۰۵/۰۳/۰۱",
+      joinDateShamsi: "۱۴۰۳/۰۵/۰۱",
       score: 360,
       hasWon: false,
       winMonth: null,
@@ -180,114 +185,141 @@ export function getInitialMockData(): {
       isAppliedForLoan: true,
       isAppliedForEmergency: false,
       loanRequestTime: Date.now() - 3600000,
+      participatedCycles: [1, 2, 3],
+      currentCycleShares: 1
     },
     {
       id: "mem_2",
       name: "اکبر رضوانیان - خونه نقلی",
+      representativeName: "عمو اکبر",
       phone: "۰۹۱۲۱۱۱۱۱۱۱",
       password: "123",
-      joinDateShamsi: "۱۴۰۵/۰۳/۰۱",
+      joinDateShamsi: "۱۴۰۳/۰۵/۰۱",
       score: 60,
       hasWon: false,
       winMonth: null,
       avatarColor: "from-amber-500 to-orange-600",
       isAppliedForLoan: false,
       isAppliedForEmergency: false,
+      participatedCycles: [1, 2, 3],
+      currentCycleShares: 1
     },
     {
       id: "mem_3",
       name: "صادق کاظمیان - ارگ رادکان",
+      representativeName: "کاظمیان",
       phone: "۰۹۳۵۲۲۲۲۲۲۲",
       password: "123",
-      joinDateShamsi: "۱۴۰۵/۰۳/۰۱",
+      joinDateShamsi: "۱۴۰۳/۰۵/۰۱",
       score: 180,
       hasWon: false,
       winMonth: null,
       avatarColor: "from-rose-500 to-pink-600",
       isAppliedForLoan: false,
       isAppliedForEmergency: false,
+      participatedCycles: [1, 2, 3],
+      currentCycleShares: 1
     },
     {
       id: "mem_4",
       name: "عبدالحق پوریعقوب - خانه پوریعقوب",
+      representativeName: "پوریعقوب",
       phone: "۰۹۱۲۳۴۵۶۷۸۹",
       password: "123",
-      joinDateShamsi: "۱۴۰۵/۰۳/۰۱",
+      joinDateShamsi: "۱۴۰۳/۰۵/۰۱",
       score: 300,
       hasWon: false,
       winMonth: null,
       avatarColor: "from-sky-500 to-blue-600",
       isAppliedForLoan: false,
       isAppliedForEmergency: false,
+      participatedCycles: [1, 2, 3],
+      currentCycleShares: 1
     },
     {
       id: "mem_5",
       name: "رامتین شهرت - نارتیتی",
+      representativeName: "رامتین",
       phone: "۰۹۱۲۳۳۳۳۳۳۳",
       password: "123",
-      joinDateShamsi: "۱۴۰۵/۰۳/۰۱",
+      joinDateShamsi: "۱۴۰۳/۰۵/۰۱",
       score: 120,
       hasWon: false,
       winMonth: null,
       avatarColor: "from-violet-500 to-indigo-600",
       isAppliedForLoan: false,
       isAppliedForEmergency: false,
+      participatedCycles: [1, 2, 3],
+      currentCycleShares: 1
     },
     {
       id: "mem_6",
       name: "منیر تقدیسی - نورخونه",
+      representativeName: "منیر",
       phone: "۰۹۰۲۴۴۴۴۴۴۴",
       password: "123",
-      joinDateShamsi: "۱۴۰۵/۰۳/۰۱",
+      joinDateShamsi: "۱۴۰۳/۰۵/۰۱",
       score: 60,
       hasWon: false,
       winMonth: null,
       avatarColor: "from-fuchsia-500 to-purple-600",
       isAppliedForLoan: false,
       isAppliedForEmergency: false,
+      participatedCycles: [1, 2, 3],
+      currentCycleShares: 1
     },
     {
       id: "mem_7",
       name: "عبدالعلی ابراهیمی - خورشید سرخان جم",
+      representativeName: "ابراهیمی",
       phone: "۰۹۳۶۵۵۵۵۵۵۵",
       password: "123",
-      joinDateShamsi: "۱۴۰۵/۰۳/۰۱",
+      joinDateShamsi: "۱۴۰۳/۰۵/۰۱",
       score: 0,
       hasWon: true,
       winMonth: "خرداد ۱۴۰۵",
       avatarColor: "from-cyan-500 to-blue-500",
       isAppliedForLoan: false,
       isAppliedForEmergency: false,
+      participatedCycles: [1, 2, 3],
+      currentCycleShares: 1
     },
     {
       id: "mem_8",
       name: "حسین کشتکارزاده - گیلانه جان",
+      representativeName: "حسین کشتکارزاده",
       phone: "۰۹۱۲۴۴۴۴۴۴۴",
       password: "123",
-      joinDateShamsi: "۱۴۰۵/۰۳/۰۱",
+      joinDateShamsi: "۱۴۰۳/۰۵/۰۱",
       score: -960,
       hasWon: false,
       winMonth: null,
       avatarColor: "from-emerald-500 to-teal-600",
       isAppliedForLoan: false,
       isAppliedForEmergency: false,
+      participatedCycles: [1, 3],
+      currentCycleShares: 1
     },
     {
       id: "mem_9",
       name: "زینب سالاری - گوهران",
+      representativeName: "زینب سالاری",
       phone: "۰۹۱۲۹۹۹۹۹۹۹",
       password: "123",
-      joinDateShamsi: "۱۴۰۵/۰۳/۰۱",
+      joinDateShamsi: "۱۴۰۴/۰۷/۰۱",
       score: 0,
       hasWon: true,
       winMonth: "مرداد ۱۴۰۵",
       avatarColor: "from-orange-500 to-amber-600",
       isAppliedForLoan: false,
       isAppliedForEmergency: false,
+      participatedCycles: [2, 3],
+      currentCycleShares: 1
     },
     {
       id: "mem_10",
       name: "نگار و عادل - راهنما",
+      representativeName: "عادل و نگار",
       phone: "۰۹۱۲۸۸۸۸۸۸۸",
       password: "123",
       joinDateShamsi: "۱۴۰۵/۰۳/۰۱",
@@ -297,6 +329,241 @@ export function getInitialMockData(): {
       avatarColor: "from-pink-500 to-rose-600",
       isAppliedForLoan: false,
       isAppliedForEmergency: false,
+      participatedCycles: [3],
+      currentCycleShares: 2
+    },
+    // Members who participated in earlier cycles (Cycle 1)
+    {
+      id: "mem_11",
+      name: "میعاد اهلی - آهید",
+      representativeName: "میعاد اهلی",
+      phone: "۰۹۱۷۱۱۱۱۱۱۱",
+      password: "123",
+      joinDateShamsi: "۱۴۰۳/۰۵/۰۱",
+      score: 0,
+      hasWon: true,
+      winMonth: "بهمن ۱۴۰۳",
+      avatarColor: "from-blue-500 to-indigo-600",
+      isAppliedForLoan: false,
+      isAppliedForEmergency: false,
+      participatedCycles: [1]
+    },
+    {
+      id: "mem_12",
+      name: "حسین - بارانداز",
+      representativeName: "حسین بارانداز",
+      phone: "۰۹۱۳۲۲۲۲۲۲۲",
+      password: "123",
+      joinDateShamsi: "۱۴۰۳/۰۵/۰۱",
+      score: 0,
+      hasWon: true,
+      winMonth: "اسفند ۱۴۰۳",
+      avatarColor: "from-amber-600 to-orange-700",
+      isAppliedForLoan: false,
+      isAppliedForEmergency: false,
+      participatedCycles: [1]
+    },
+    {
+      id: "mem_13",
+      name: "جیران - پیسو",
+      representativeName: "جیران",
+      phone: "۰۹۱۸۳۳۳۳۳۳۳",
+      password: "123",
+      joinDateShamsi: "۱۴۰۳/۰۵/۰۱",
+      score: 0,
+      hasWon: true,
+      winMonth: "دی ۱۴۰۳",
+      avatarColor: "from-purple-500 to-pink-600",
+      isAppliedForLoan: false,
+      isAppliedForEmergency: false,
+      participatedCycles: [1]
+    },
+    {
+      id: "mem_14",
+      name: "زارعی - خانه باغدشت کاشمر",
+      representativeName: "زارعی",
+      phone: "۰۹۱۵۴۴۴۴۴۴۴",
+      password: "123",
+      joinDateShamsi: "۱۴۰۳/۰۵/۰۱",
+      score: 0,
+      hasWon: true,
+      winMonth: "اردیبهشت ۱۴۰۴",
+      avatarColor: "from-green-600 to-emerald-700",
+      isAppliedForLoan: false,
+      isAppliedForEmergency: false,
+      participatedCycles: [1]
+    },
+    {
+      id: "mem_15",
+      name: "پاده بان - خانه ترانگ",
+      representativeName: "پاده بان",
+      phone: "۰۹۱۴۵۵۵۵۵۵۵",
+      password: "123",
+      joinDateShamsi: "۱۴۰۳/۰۵/۰۱",
+      score: 0,
+      hasWon: true,
+      winMonth: "آبان ۱۴۰۳",
+      avatarColor: "from-red-500 to-rose-600",
+      isAppliedForLoan: false,
+      isAppliedForEmergency: false,
+      participatedCycles: [1]
+    },
+    {
+      id: "mem_16",
+      name: "جواهری - خانه جواهری",
+      representativeName: "جواهری",
+      phone: "۰۹۱۲۶۶۶۶۶۶۶",
+      password: "123",
+      joinDateShamsi: "۱۴۰۳/۰۵/۰۱",
+      score: 0,
+      hasWon: true,
+      winMonth: "شهریور ۱۴۰۳",
+      avatarColor: "from-cyan-600 to-teal-700",
+      isAppliedForLoan: false,
+      isAppliedForEmergency: false,
+      participatedCycles: [1]
+    },
+    {
+      id: "mem_17",
+      name: "معتبر سرخوش - خانه فصیح خواف",
+      representativeName: "سرخوش",
+      phone: "۰۹۱۷۷۷۷۷۷۷۷",
+      password: "123",
+      joinDateShamsi: "۱۴۰۳/۰۵/۰۱",
+      score: 0,
+      hasWon: true,
+      winMonth: "دی ۱۴۰۳",
+      avatarColor: "from-slate-600 to-slate-800",
+      isAppliedForLoan: false,
+      isAppliedForEmergency: false,
+      participatedCycles: [1]
+    },
+    {
+      id: "mem_18",
+      name: "حسین پور - کنگ کهن",
+      representativeName: "حسین پور",
+      phone: "۰۹۱۵۸۸۸۸۸۸۸",
+      password: "123",
+      joinDateShamsi: "۱۴۰۳/۰۵/۰۱",
+      score: 0,
+      hasWon: true,
+      winMonth: "فروردین ۱۴۰۴",
+      avatarColor: "from-yellow-600 to-amber-700",
+      isAppliedForLoan: false,
+      isAppliedForEmergency: false,
+      participatedCycles: [1]
+    },
+    {
+      id: "mem_19",
+      name: "طبا - ننه کلو بابا کلو",
+      representativeName: "طبا",
+      phone: "۰۹۱۳۹۹۹۹۹۹۹",
+      password: "123",
+      joinDateShamsi: "۱۴۰۳/۰۵/۰۱",
+      score: 0,
+      hasWon: true,
+      winMonth: "فروردین ۱۴۰۴",
+      avatarColor: "from-violet-600 to-purple-700",
+      isAppliedForLoan: false,
+      isAppliedForEmergency: false,
+      participatedCycles: [1]
+    }
+  ];
+
+  const cycles: FundCycle[] = [
+    {
+      id: "cycle_1",
+      cycleNumber: 1,
+      title: "دوره اول (۱۴۰۳ - ۱۴۰۴)",
+      status: "completed",
+      startShamsiDate: "۱۴۰۳/۰۵/۰۱",
+      endShamsiDate: "۱۴۰۴/۰۴/۳۱",
+      monthlyAmount: 2000000,
+      savingsAmount: 0,
+      totalMonths: 12,
+      memberIds: [
+        "mem_1", "mem_2", "mem_3", "mem_4", "mem_5", "mem_6", "mem_7", "mem_8",
+        "mem_11", "mem_12", "mem_13", "mem_14", "mem_15", "mem_16", "mem_17", "mem_18", "mem_19"
+      ],
+      memberShares: {
+        mem_1: 2, mem_2: 2, mem_3: 2, mem_4: 2, mem_14: 2, mem_18: 2,
+        mem_5: 1, mem_6: 1, mem_7: 1, mem_8: 1, mem_11: 1, mem_12: 1, mem_13: 1, mem_15: 1, mem_16: 1, mem_17: 1, mem_19: 1
+      },
+      notes: "دوره ۱۲ ماهه نخست صندوق حامی بومگردی با حضور ۱۷ اقامتگاه و ۲۳ سهم (اقساط ۲ میلیون تومانی)",
+      pastWinners: [
+        { monthName: "مرداد ۱۴۰۳", winnerName: "خانه خورشید سرخان (قرعه کشی ۱)" },
+        { monthName: "مرداد ۱۴۰۳", winnerName: "نارتیتی (قرعه کشی ۲)" },
+        { monthName: "شهریور ۱۴۰۳", winnerName: "خانه باغدشت کاشمر (ضروری)" },
+        { monthName: "شهریور ۱۴۰۳", winnerName: "خانه جواهری (قرعه کشی)" },
+        { monthName: "مهر ۱۴۰۳", winnerName: "کنگ کهن (قرعه کشی)" },
+        { monthName: "مهر ۱۴۰۳", winnerName: "نورخونه (ضروری)" },
+        { monthName: "آبان ۱۴۰۳", winnerName: "ارگ رادکان (قرعه کشی)" },
+        { monthName: "آبان ۱۴۰۳", winnerName: "خانه ترانگ (ضروری)" },
+        { monthName: "آذر ۱۴۰۳", winnerName: "خانه برزک (قرعه کشی)" },
+        { monthName: "آذر ۱۴۰۳", winnerName: "خونه نقلی (قرعه کشی)" },
+        { monthName: "دی ۱۴۰۳", winnerName: "پیسو (قرعه کشی)" },
+        { monthName: "دی ۱۴۰۳", winnerName: "خانه فصیح خواف (ضروری)" },
+        { monthName: "بهمن ۱۴۰۳", winnerName: "آهید (قرعه کشی)" },
+        { monthName: "بهمن ۱۴۰۳", winnerName: "خانه گیلان جان (قرعه کشی)" },
+        { monthName: "اسفند ۱۴۰۳", winnerName: "بارانداز (قرعه کشی)" },
+        { monthName: "اسفند ۱۴۰۳", winnerName: "ننه کلو بابا کلو (قرعه کشی)" },
+        { monthName: "فروردین ۱۴۰۴", winnerName: "کنگ کهن (سهم دوم)" },
+        { monthName: "فروردین ۱۴۰۴", winnerName: "ننه کلو بابا کلو (سهم دوم)" },
+        { monthName: "اردیبهشت ۱۴۰۴", winnerName: "خانه باغدشت (سهم دوم)" },
+        { monthName: "اردیبهشت ۱۴۰۴", winnerName: "خونه نقلی (سهم دوم)" },
+        { monthName: "خرداد ۱۴۰۴", winnerName: "خانه برزک (سهم دوم)" },
+        { monthName: "خرداد ۱۴۰۴", winnerName: "خانه پوریعقوب (سهم اول)" },
+        { monthName: "تیر ۱۴۰۴", winnerName: "ارگ رادکان (سهم دوم)" }
+      ]
+    },
+    {
+      id: "cycle_2",
+      cycleNumber: 2,
+      title: "دوره دوم (۱۴۰۴ - ۱۴۰۵)",
+      status: "completed",
+      startShamsiDate: "۱۴۰۴/۰۷/۰۱",
+      endShamsiDate: "۱۴۰۵/۰۲/۲۹",
+      monthlyAmount: 5000000,
+      savingsAmount: 0,
+      totalMonths: 8,
+      memberIds: [
+        "mem_1", "mem_2", "mem_3", "mem_4", "mem_5", "mem_6", "mem_7", "mem_9"
+      ],
+      notes: "دوره ۸ ماهه دوم با حضور ۸ عضو و اقساط ماهانه ۵ میلیون تومان (تسهیلات ۴۰ میلیون تومانی)",
+      pastWinners: [
+        { monthName: "مهر ۱۴۰۴", winnerName: "خانه پوریعقوب" },
+        { monthName: "آبان ۱۴۰۴", winnerName: "گوهران (زینب سالاری)" },
+        { monthName: "دی ۱۴۰۴", winnerName: "گوهران" },
+        { monthName: "بهمن ۱۴۰۴", winnerName: "خونه نقلی" },
+        { monthName: "اسفند ۱۴۰۴", winnerName: "ارگ رادکان" },
+        { monthName: "فروردین ۱۴۰۵", winnerName: "نارتیتی" },
+        { monthName: "اردیبهشت ۱۴۰۵", winnerName: "خانه برزک" }
+      ]
+    },
+    {
+      id: "cycle_3",
+      cycleNumber: 3,
+      title: "دوره سوم (۱۴۰۵ - جاری)",
+      status: "active",
+      startShamsiDate: "۱۴۰۵/۰۳/۰۱",
+      endShamsiDate: "۱۴۰۵/۱۲/۲۹",
+      monthlyAmount: 5000000,
+      savingsAmount: 500000,
+      totalMonths: 10,
+      memberIds: [
+        "mem_1", "mem_2", "mem_3", "mem_4", "mem_5", "mem_6", "mem_7", "mem_8", "mem_9", "mem_10"
+      ],
+      memberShares: {
+        mem_1: 1, mem_2: 1, mem_3: 1, mem_4: 1, mem_5: 1, mem_6: 1, mem_7: 1, mem_8: 1, mem_9: 1, mem_10: 2
+      },
+      notes: "دوره جاری با ۱۰ عضو و ۱۱ سهم: ۵ میلیون تومان قسط اصلی + ۵۰۰ هزار تومان پس‌انداز ماهانه هر سهم (سرمایه‌گذاری در صندوق طلا)",
+      goldInvestmentNote: "مبالغ پس‌انداز ماهانه (۵۰۰ هزار تومان در ماه به ازای هر سهم) در صندوق طلا سرمایه‌گذاری شده است. مبلغ نهایی پس‌انداز انباشته پس از پایان دوره و محاسبه ارزش روز مشخص و در مورد نحوه انتقال به دوره‌های بعدی تصمیم‌گیری خواهد شد.",
+      accumulatedSavingsPool: 16500000,
+      pastWinners: [
+        { monthName: "خرداد ۱۴۰۵", winnerName: "عبدالعلی ابراهیمی - خورشید سرخان جم" },
+        { monthName: "تیر ۱۴۰۵", winnerName: "نگار و عادل - راهنما" },
+        { monthName: "مرداد ۱۴۰۵", winnerName: "زینب سالاری - گوهران" }
+      ]
     }
   ];
 
@@ -310,7 +577,8 @@ export function getInitialMockData(): {
       totalPoolAmount: 55000000,
       drawMethod: "random",
       participantsCount: 10,
-      loanType: "main"
+      loanType: "main",
+      cycleNumber: 3
     },
     {
       id: "lot_2",
@@ -321,7 +589,8 @@ export function getInitialMockData(): {
       totalPoolAmount: 55000000,
       drawMethod: "weighted",
       participantsCount: 9,
-      loanType: "main"
+      loanType: "main",
+      cycleNumber: 3
     },
     {
       id: "lot_3",
@@ -332,7 +601,8 @@ export function getInitialMockData(): {
       totalPoolAmount: 55000000,
       drawMethod: "weighted",
       participantsCount: 8,
-      loanType: "main"
+      loanType: "main",
+      cycleNumber: 3
     }
   ];
 
@@ -374,6 +644,6 @@ export function getInitialMockData(): {
     { id: "p_5_10", memberId: "mem_10", monthName: "مرداد ۱۴۰۵", amount: 5500000, savingsAmount: 500000, paymentDayShamsi: 1, paymentDateShamsi: "۱۴۰۵/۰۵/۰۱", scoreDelta: 0, status: "paid" }
   ];
 
-  return { members, payments, lotteries, settings };
+  return { members, payments, lotteries, settings, cycles };
 }
 

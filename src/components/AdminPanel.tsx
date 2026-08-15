@@ -1,19 +1,22 @@
 import React, { useState } from "react";
-import { Member, Payment, FundSettings, PERS_MONTH_NAMES } from "../types";
+import { Member, Payment, FundSettings, FundCycle, PERS_MONTH_NAMES } from "../types";
 import { toPersianDigits, formatCurrency, calculatePaymentScore } from "../utils/jalali";
 import { sendTelegramMessage, formatTelegramMessage, DEFAULT_TELEGRAM_TEMPLATE } from "../utils/telegram";
 import { 
   Users, UserPlus, Coins, Calendar, Check, X, AlertCircle, Trash2, Edit2,
   Settings as SettingsIcon, Save, RefreshCw, Trophy, Info, Key, Shield, Eye, EyeOff, Filter,
-  Send, Bot, MessageSquare, Loader2, CheckCircle2, Radio, Image as ImageIcon, Upload, Link as LinkIcon
+  Send, Bot, MessageSquare, Loader2, CheckCircle2, Radio, Image as ImageIcon, Upload, Link as LinkIcon,
+  Layers
 } from "lucide-react";
 import LotteryDraw from "./LotteryDraw";
+import CycleManager from "./CycleManager";
 
 interface AdminPanelProps {
   members: Member[];
   payments: Payment[];
   lotteries: any[];
   settings: FundSettings;
+  cycles?: FundCycle[];
   onAddMember: (name: string, password?: string) => void;
   onUpdateMember: (id: string, updatedFields: Partial<Member>) => void;
   onRemoveMember: (id: string) => void;
@@ -24,6 +27,9 @@ interface AdminPanelProps {
   isDrawingActive: boolean;
   setIsDrawingActive: (val: boolean) => void;
   onToggleApplyForLoan?: (memberId: string, type: "main" | "emergency") => void;
+  onAddCycle?: (newCycle: FundCycle) => void;
+  onUpdateCycle?: (cycleId: string, updatedFields: Partial<FundCycle>) => void;
+  onSetActiveCycle?: (cycleNumber: number) => void;
 }
 
 export default function AdminPanel({
@@ -31,6 +37,7 @@ export default function AdminPanel({
   payments,
   lotteries,
   settings,
+  cycles = [],
   onAddMember,
   onUpdateMember,
   onRemoveMember,
@@ -40,9 +47,12 @@ export default function AdminPanel({
   onResetFundCycle,
   isDrawingActive,
   setIsDrawingActive,
-  onToggleApplyForLoan
+  onToggleApplyForLoan,
+  onAddCycle,
+  onUpdateCycle,
+  onSetActiveCycle
 }: AdminPanelProps) {
-  const [activeTab, setActiveTab] = useState<"payments" | "members" | "draw" | "settings">("payments");
+  const [activeTab, setActiveTab] = useState<"payments" | "members" | "cycles" | "draw" | "settings">("payments");
   
   // Form states - Add user
   const [newName, setNewName] = useState("");
@@ -73,6 +83,12 @@ export default function AdminPanel({
 
   // Fund Custom Logo & Favicon
   const [editLogoUrl, setEditLogoUrl] = useState<string>(settings.logoUrl || "");
+
+  // Gold Fund Valuation & Note
+  const [editGoldFundValue, setEditGoldFundValue] = useState<string>((settings.goldFundValueToman || 18500000).toString());
+  const [editGoldInvestmentNote, setEditGoldInvestmentNote] = useState<string>(
+    settings.goldInvestmentNote || "مبالغ پس‌انداز ماهانه در صندوق طلا سرمایه‌گذاری شده و ارزش روز آن در پایان دوره تعیین خواهد شد."
+  );
 
   // Telegram Integration States
   const [editTelegramBotToken, setEditTelegramBotToken] = useState<string>(settings.telegramBotToken || "");
@@ -118,6 +134,10 @@ export default function AdminPanel({
     setEditAutoDrawOnFirst(settings.autoDrawOnFirstOfMonth ?? true);
     setEditAdminPassword(settings.adminPassword || "admin");
     setEditLogoUrl(settings.logoUrl || "");
+    setEditGoldFundValue((settings.goldFundValueToman || 18500000).toString());
+    setEditGoldInvestmentNote(
+      settings.goldInvestmentNote || "مبالغ پس‌انداز ماهانه در صندوق طلا سرمایه‌گذاری شده و ارزش روز آن در پایان دوره تعیین خواهد شد."
+    );
     setEditTelegramBotToken(settings.telegramBotToken || "");
     setEditTelegramChatId(settings.telegramChatId || "");
     setEditEnableTelegram(settings.enableTelegramNotification ?? true);
@@ -185,12 +205,14 @@ export default function AdminPanel({
       autoDrawOnFirstOfMonth: editAutoDrawOnFirst,
       adminPassword: editAdminPassword,
       logoUrl: editLogoUrl,
+      goldFundValueToman: Number(editGoldFundValue) || 18500000,
+      goldInvestmentNote: editGoldInvestmentNote,
       telegramBotToken: editTelegramBotToken,
       telegramChatId: editTelegramChatId,
       enableTelegramNotification: editEnableTelegram,
       telegramMessageTemplate: editTelegramMessageTemplate,
     });
-    alert("تنظیمات عمومی، لوگو و اطلاع‌رسانی با موفقیت ذخیره گردید!");
+    alert("تنظیمات عمومی، ارزش صندوق طلا، لوگو و اطلاع‌رسانی با موفقیت ذخیره گردید!");
   };
   const totalSavingsPaidAllTime = payments
     .filter(p => p.status === "paid")
@@ -248,6 +270,21 @@ export default function AdminPanel({
           >
             <Users className="w-4 h-4 text-slate-400" />
             <span>تعریف رمز و اعضا</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab("cycles")}
+            className={`pb-4 text-xs font-bold border-b-2 transition-all flex items-center gap-1.5 px-1 cursor-pointer ${
+              activeTab === "cycles"
+                ? "border-teal-800 text-teal-850 font-black"
+                : "border-transparent text-slate-500 hover:text-slate-850"
+            }`}
+          >
+            <Layers className="w-4 h-4 text-slate-400" />
+            <span>دوره‌ها و سوابق صندوق</span>
+            <span className="text-[9px] bg-teal-100 text-teal-800 font-bold px-1.5 py-0.2 rounded-full">
+              دوره ۳
+            </span>
           </button>
 
           <button
@@ -666,6 +703,9 @@ export default function AdminPanel({
 
                             <span className="text-[10px] text-slate-400 block mt-1">
                               عضویت از: <b>{member.joinDateShamsi}</b>
+                              {member.representativeName && (
+                                <span className="mr-1 text-slate-500 font-bold">({member.representativeName})</span>
+                              )}
                             </span>
                             <span className="text-[10px] text-slate-400 block mt-0.5">
                               مجموع اعتبار خوش‌حسابی:{" "}
@@ -673,6 +713,28 @@ export default function AdminPanel({
                                 {member.score >= 0 ? '+' : ''}{toPersianDigits(new Intl.NumberFormat("en-US").format(member.score))}
                               </b>
                             </span>
+
+                            {/* Participated Cycles Badges */}
+                            <div className="flex flex-wrap items-center gap-1 mt-1.5">
+                              <span className="text-[9px] text-slate-400">سوابق دوره‌ها:</span>
+                              {(member.participatedCycles || [3]).map(cNum => (
+                                <span 
+                                  key={cNum}
+                                  className={`text-[9px] font-bold px-1.5 py-0.2 rounded border ${
+                                    cNum === 3 
+                                      ? "bg-teal-50 text-teal-800 border-teal-200" 
+                                      : "bg-slate-100 text-slate-600 border-slate-200"
+                                  }`}
+                                >
+                                  دوره {toPersianDigits(cNum)}
+                                </span>
+                              ))}
+                              {member.currentCycleShares && member.currentCycleShares > 1 && (
+                                <span className="text-[9px] font-black px-1.5 py-0.2 rounded bg-indigo-50 text-indigo-700 border border-indigo-200">
+                                  {toPersianDigits(member.currentCycleShares)} سهم
+                                </span>
+                              )}
+                            </div>
                           </div>
 
                           <div className="flex flex-col gap-1 text-left shrink-0">
@@ -764,6 +826,20 @@ export default function AdminPanel({
               </div>
             </div>
           </div>
+        )}
+
+        {/* Tab 2.5: FUND CYCLES & SENIORITY */}
+        {activeTab === "cycles" && (
+          <CycleManager
+            cycles={cycles}
+            members={members}
+            payments={payments}
+            settings={settings}
+            onAddCycle={onAddCycle || (() => {})}
+            onUpdateCycle={onUpdateCycle || (() => {})}
+            onSetActiveCycle={onSetActiveCycle || (() => {})}
+            onUpdateSettings={onUpdateSettings}
+          />
         )}
 
         {/* Tab 3: DRAW LOTTERY */}
@@ -931,6 +1007,46 @@ export default function AdminPanel({
                       />
                       <div className="w-9 h-5 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:right-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-teal-700"></div>
                     </label>
+                  </div>
+
+                  {/* Gold Investment & Valuation Setting */}
+                  <div className="p-3.5 bg-amber-50/70 border border-amber-200 rounded-lg space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-amber-950 flex items-center gap-1.5">
+                        <Coins className="w-4 h-4 text-amber-600" />
+                        برآورد ارزش روز دارایی طلا (صندوق پس‌انداز)
+                      </span>
+                      <span className="text-[10px] text-amber-800 font-bold bg-amber-100/70 px-2 py-0.5 rounded">
+                        قابل تنظیم توسط ادمین
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-600 mb-1">ارزش روز دارایی طلا (تومان):</label>
+                        <input
+                          type="number"
+                          step="100000"
+                          value={editGoldFundValue}
+                          onChange={(e) => setEditGoldFundValue(e.target.value)}
+                          className="w-full p-2.5 border border-amber-200 bg-white text-amber-950 font-mono font-black rounded text-xs focus:outline-none focus:border-amber-500"
+                        />
+                        <span className="text-[10px] text-amber-800 mt-0.5 block font-mono font-bold">
+                          معادل: {formatCurrency(Number(editGoldFundValue) || 0)}
+                        </span>
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-600 mb-1">یادداشت راهبردی صندوق طلا:</label>
+                        <input
+                          type="text"
+                          value={editGoldInvestmentNote}
+                          onChange={(e) => setEditGoldInvestmentNote(e.target.value)}
+                          className="w-full p-2.5 border border-amber-200 bg-white text-slate-800 rounded text-xs focus:outline-none focus:border-amber-500"
+                        />
+                        <span className="text-[10px] text-slate-400 mt-0.5 block">
+                          نمایش در پنل اعضا و گزارش‌های دوره‌ای
+                        </span>
+                      </div>
+                    </div>
                   </div>
 
                   <div>

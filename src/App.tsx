@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Member, Payment, LotteryResult, FundSettings, PERS_MONTH_NAMES } from "./types";
+import { Member, Payment, LotteryResult, FundSettings, FundCycle, PERS_MONTH_NAMES } from "./types";
 import { getInitialMockData, calculatePaymentScore, toPersianDigits, formatCurrency, gregorianToJalali } from "./utils/jalali";
 import FundOverview from "./components/FundOverview";
 import AdminPanel from "./components/AdminPanel";
@@ -14,6 +14,7 @@ export default function App() {
   const [members, setMembers] = useState<Member[]>([]);
   const [payments, setPayments] = useState<Payment[]>([]);
   const [lotteries, setLotteries] = useState<LotteryResult[]>([]);
+  const [cycles, setCycles] = useState<FundCycle[]>([]);
   const [settings, setSettings] = useState<FundSettings>({
     fundName: "صندوق قرض‌الحسنه و پس‌انداز حامی بومگردی",
     monthlyAmount: 5500000,
@@ -22,6 +23,9 @@ export default function App() {
     autoDrawOnFirstOfMonth: true,
     currentYear: 1405,
     currentMonthIndex: 5,
+    currentCycleNumber: 3,
+    goldInvestmentNote: "مبالغ پس‌انداز در صندوق طلا سرمایه‌گذاری شده و ارزش روز آن در پایان دوره تعیین خواهد شد.",
+    goldFundValueToman: 18500000,
     adminPassword: "admin",
     telegramBotToken: "",
     telegramChatId: "",
@@ -54,7 +58,7 @@ export default function App() {
 
   // Initialize state from localStorage or load high fidelity mock data
   useEffect(() => {
-    const CURRENT_VERSION = "v5.1_salari_telegram";
+    const CURRENT_VERSION = "v6.0_multi_cycles_gold";
     const savedVersion = localStorage.getItem("mehr_fund_db_version");
     
     // If version changed, preserve telegram settings if user already configured them
@@ -79,12 +83,14 @@ export default function App() {
     const savedPayments = localStorage.getItem("mehr_fund_payments");
     const savedLotteries = localStorage.getItem("mehr_fund_lotteries");
     const savedSettings = localStorage.getItem("mehr_fund_settings");
+    const savedCycles = localStorage.getItem("mehr_fund_cycles");
 
-    if (savedMembers && savedPayments && savedLotteries && savedSettings) {
+    if (savedMembers && savedPayments && savedLotteries && savedSettings && savedCycles) {
       let parsedMembers: Member[] = JSON.parse(savedMembers);
       let parsedLotteries: LotteryResult[] = JSON.parse(savedLotteries);
       let parsedSettings: FundSettings = JSON.parse(savedSettings);
       let parsedPayments: Payment[] = JSON.parse(savedPayments);
+      let parsedCycles: FundCycle[] = JSON.parse(savedCycles);
 
       // Auto update Zainab Salar -> Zainab Salari in existing storage
       parsedMembers = parsedMembers.map(m => {
@@ -112,10 +118,12 @@ export default function App() {
       setPayments(parsedPayments);
       setLotteries(parsedLotteries);
       setSettings(parsedSettings);
+      setCycles(parsedCycles);
 
       localStorage.setItem("mehr_fund_members", JSON.stringify(parsedMembers));
       localStorage.setItem("mehr_fund_lotteries", JSON.stringify(parsedLotteries));
       localStorage.setItem("mehr_fund_settings", JSON.stringify(parsedSettings));
+      localStorage.setItem("mehr_fund_cycles", JSON.stringify(parsedCycles));
     } else {
       // Load premium default mock data
       const defaults = getInitialMockData();
@@ -126,12 +134,14 @@ export default function App() {
       setPayments(defaults.payments);
       setLotteries(defaults.lotteries);
       setSettings(defaults.settings);
+      setCycles(defaults.cycles || []);
       
       // Save them instantly
       localStorage.setItem("mehr_fund_members", JSON.stringify(defaults.members));
       localStorage.setItem("mehr_fund_payments", JSON.stringify(defaults.payments));
       localStorage.setItem("mehr_fund_lotteries", JSON.stringify(defaults.lotteries));
       localStorage.setItem("mehr_fund_settings", JSON.stringify(defaults.settings));
+      localStorage.setItem("mehr_fund_cycles", JSON.stringify(defaults.cycles || []));
     }
   }, []);
 
@@ -158,16 +168,60 @@ export default function App() {
   }, [settings.logoUrl, settings.fundName]);
 
   // Helper to persist current state
-  const persistState = (newMembers: Member[], newPayments: Payment[], newLotteries: LotteryResult[], newSettings: FundSettings) => {
+  const persistState = (
+    newMembers: Member[], 
+    newPayments: Payment[], 
+    newLotteries: LotteryResult[], 
+    newSettings: FundSettings,
+    newCycles?: FundCycle[]
+  ) => {
     setMembers(newMembers);
     setPayments(newPayments);
     setLotteries(newLotteries);
     setSettings(newSettings);
+    if (newCycles) {
+      setCycles(newCycles);
+      localStorage.setItem("mehr_fund_cycles", JSON.stringify(newCycles));
+    }
 
     localStorage.setItem("mehr_fund_members", JSON.stringify(newMembers));
     localStorage.setItem("mehr_fund_payments", JSON.stringify(newPayments));
     localStorage.setItem("mehr_fund_lotteries", JSON.stringify(newLotteries));
     localStorage.setItem("mehr_fund_settings", JSON.stringify(newSettings));
+  };
+
+  // Cycle management handlers
+  const handleAddCycle = (newCycle: FundCycle) => {
+    const updatedCycles = [...cycles, newCycle];
+    let updatedSettings = { ...settings };
+    if (newCycle.status === "active") {
+      updatedCycles.forEach(c => {
+        if (c.id !== newCycle.id) c.status = "archived";
+      });
+      updatedSettings.currentCycleNumber = newCycle.cycleNumber;
+      updatedSettings.monthlyAmount = newCycle.monthlyAmount;
+      updatedSettings.savingsAmount = newCycle.savingsAmount;
+    }
+    persistState(members, payments, lotteries, updatedSettings, updatedCycles);
+  };
+
+  const handleUpdateCycle = (cycleId: string, updatedFields: Partial<FundCycle>) => {
+    const updatedCycles = cycles.map(c => c.id === cycleId ? { ...c, ...updatedFields } : c);
+    persistState(members, payments, lotteries, settings, updatedCycles);
+  };
+
+  const handleSetActiveCycle = (cycleNumber: number) => {
+    const updatedCycles = cycles.map(c => ({
+      ...c,
+      status: c.cycleNumber === cycleNumber ? "active" : "archived"
+    }));
+    const activeC = updatedCycles.find(c => c.cycleNumber === cycleNumber);
+    let updatedSettings = { ...settings, currentCycleNumber: cycleNumber };
+    if (activeC) {
+      updatedSettings.monthlyAmount = activeC.monthlyAmount;
+      updatedSettings.savingsAmount = activeC.savingsAmount;
+    }
+    persistState(members, payments, lotteries, updatedSettings, updatedCycles);
   };
 
   // Add a new member
@@ -590,6 +644,7 @@ export default function App() {
                 payments={payments}
                 lotteries={lotteries}
                 settings={settings}
+                cycles={cycles}
                 onAddMember={handleAddMember}
                 onUpdateMember={handleUpdateMember}
                 onRemoveMember={handleRemoveMember}
@@ -600,6 +655,9 @@ export default function App() {
                 isDrawingActive={isDrawingActive}
                 setIsDrawingActive={setIsDrawingActive}
                 onToggleApplyForLoan={handleToggleApplyForLoan}
+                onAddCycle={handleAddCycle}
+                onUpdateCycle={handleUpdateCycle}
+                onSetActiveCycle={handleSetActiveCycle}
               />
             )
           ) : (
@@ -607,6 +665,7 @@ export default function App() {
               members={members}
               payments={payments}
               settings={settings}
+              cycles={cycles}
               onRecordPayment={handleRecordPayment}
               onToggleApplyForLoan={handleToggleApplyForLoan}
             />

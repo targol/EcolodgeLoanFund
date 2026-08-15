@@ -1,15 +1,17 @@
 import React, { useState } from "react";
-import { Member, Payment, FundSettings, PERS_MONTH_NAMES } from "../types";
+import { Member, Payment, FundSettings, FundCycle, PERS_MONTH_NAMES } from "../types";
 import { toPersianDigits, formatCurrency, calculatePaymentScore } from "../utils/jalali";
 import { 
   User, CheckCircle, AlertCircle, Calendar, Sparkles, TrendingUp, Clock,
-  Trophy, ArrowLeftRight, CreditCard, Award, ShieldAlert, Key, LogOut, Check, HelpCircle
+  Trophy, ArrowLeftRight, CreditCard, Award, ShieldAlert, Key, LogOut, Check, HelpCircle,
+  Coins, Layers, Shield
 } from "lucide-react";
 
 interface MemberPanelProps {
   members: Member[];
   payments: Payment[];
   settings: FundSettings;
+  cycles?: FundCycle[];
   onRecordPayment: (memberId: string, day: number) => void;
   onToggleApplyForLoan: (memberId: string, type: "main" | "emergency") => void;
 }
@@ -18,6 +20,7 @@ export default function MemberPanel({
   members,
   payments,
   settings,
+  cycles = [],
   onRecordPayment,
   onToggleApplyForLoan
 }: MemberPanelProps) {
@@ -367,6 +370,30 @@ export default function MemberPanel({
               </div>
 
               <div className="flex justify-between items-center text-xs text-slate-500">
+                <span>تعداد سهم در دوره ۳ (جاری):</span>
+                <strong className="text-indigo-700 font-bold">
+                  {toPersianDigits(activeMember.currentCycleShares || 1)} سهم
+                  {activeMember.currentCycleShares && activeMember.currentCycleShares > 1 ? " (دوبرابر)" : ""}
+                </strong>
+              </div>
+
+              <div className="flex justify-between items-center text-xs text-slate-500">
+                <span>سوابق حضور در دوره‌ها:</span>
+                <div className="flex gap-1">
+                  {(activeMember.participatedCycles || [3]).map(cNum => (
+                    <span 
+                      key={cNum} 
+                      className={`text-[9px] font-bold px-1.5 py-0.2 rounded border ${
+                        cNum === 3 ? "bg-teal-50 text-teal-800 border-teal-200" : "bg-slate-100 text-slate-600 border-slate-200"
+                      }`}
+                    >
+                      دوره {toPersianDigits(cNum)}
+                    </span>
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex justify-between items-center text-xs text-slate-500">
                 <span>شناسه تاریخ شروع عضویت:</span>
                 <strong className="font-mono text-slate-700">{activeMember.joinDateShamsi}</strong>
               </div>
@@ -383,6 +410,23 @@ export default function MemberPanel({
                   </span>
                 )}
               </div>
+            </div>
+
+            {/* Gold Savings Badge for Member */}
+            <div className="p-3 bg-amber-50/60 border border-amber-200 rounded-lg space-y-1 text-xs">
+              <div className="flex items-center justify-between">
+                <span className="font-bold text-amber-950 flex items-center gap-1 text-[11px]">
+                  <Coins className="w-3.5 h-3.5 text-amber-600" />
+                  پس‌انداز شما در صندوق طلا:
+                </span>
+                <span className="font-black text-amber-900 font-mono text-[11px]">
+                  {formatCurrency((activeMember.currentCycleShares || 1) * (settings.savingsAmount || 500000) * paidCount)}
+                </span>
+              </div>
+              <p className="text-[10px] text-amber-800 leading-tight">
+                {activeMember.currentCycleShares && activeMember.currentCycleShares > 1 ? "به ازای ۲ سهم شما، " : ""}
+                مبالغ پس‌انداز ماهانه در صندوق طلا سرمایه‌گذاری شده و تسویه/انتقال آن در پایان دوره به ارزش روز محاسبه می‌شود.
+              </p>
             </div>
           </div>
 
