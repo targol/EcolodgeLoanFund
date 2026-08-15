@@ -1,9 +1,0 @@
-name = "sandogh-bome"
-compatibility_date = "2024-01-01"
-pages_build_output_dir = "dist"
-
-# Cloudflare KV Storage for persistent database (zero data loss across code deployments)
-[[kv_namespaces]]
-binding = "SANDOGH_KV"
-id = "YOUR_KV_NAMESPACE_ID"
-preview_id = "YOUR_KV_PREVIEW_ID"

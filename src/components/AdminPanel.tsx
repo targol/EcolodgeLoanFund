@@ -1240,10 +1240,44 @@ export default function AdminPanel({
                 </div>
 
                 <div className="flex items-center gap-2">
-                  <span className="text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 px-2.5 py-1 rounded flex items-center gap-1 w-fit">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                    همگام‌سازی ابری فعال
-                  </span>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      try {
+                        setBackupFeedback({ type: "idle" });
+                        const res = await fetch("/api/health");
+                        if (res.ok) {
+                          const json = await res.json();
+                          if (json.kvBound) {
+                            setBackupFeedback({
+                              type: "success",
+                              msg: "✅ اتصال پایگاه داده ابری کلودفلر (SANDOGH_KV) با موفقیت تأیید شد و فعال است."
+                            });
+                          } else {
+                            setBackupFeedback({
+                              type: "error",
+                              msg: "⚠️ دیتابیس ابری هنوز در کلودفلر Bind نشده است (در حال حاضر داده‌ها روی حافظه پایدار مرورگر ذخیره می‌شوند)."
+                            });
+                          }
+                        } else {
+                          setBackupFeedback({
+                            type: "idle",
+                            msg: "در محیط محلی (Local Preview) هستید و داده‌ها روی حافظه پایدار مرورگر ذخیره می‌شوند."
+                          });
+                        }
+                      } catch (err) {
+                        setBackupFeedback({
+                          type: "idle",
+                          msg: "پایگاه داده به صورت آفلاین/محلی (LocalStorage) پایدار است."
+                        });
+                      }
+                      setTimeout(() => setBackupFeedback({ type: "idle" }), 6000);
+                    }}
+                    className="text-[11px] font-bold bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-colors cursor-pointer"
+                  >
+                    <RefreshCw className="w-3.5 h-3.5" />
+                    <span>تست وضعیت اتصال KV</span>
+                  </button>
                 </div>
               </div>
 
