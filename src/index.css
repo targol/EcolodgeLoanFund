@@ -1,0 +1,25 @@
+@import url('https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;500;700;900&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Vazirmatn", ui-sans-serif, system-ui, -apple-system, sans-serif;
+  
+  /* Redefine 'teal' with beautiful, warm desert-adobe "کاهگل / نخودی" tones */
+  --color-teal-50: #fdfaf4;    /* very soft clay clay sand background */
+  --color-teal-100: #f6efe1;   /* soft cream-sand plaster */
+  --color-teal-150: #ede2cd;   /* straw border accent */
+  --color-teal-200: #e3d2b2;   /* warm نخودی cream */
+  --color-teal-300: #d6bd91;   /* sand clay */
+  --color-teal-400: #c5a46e;   /* roasted biscuit adobe */
+  --color-teal-500: #b48e53;   /* earthy clay */
+  --color-teal-600: #99733a;   /* warm ochre mud-straw plaster */
+  --color-teal-700: #805c28;   /* dark clay sand */
+  --color-teal-800: #67481a;   /* rich deep کاهگل color */
+  --color-teal-850: #563b14;   /* deep espresso-adobe */
+  --color-teal-900: #462f0f;   /* dark roasted adobe */
+  --color-teal-950: #301f09;   /* deepest ground clay accent */
+}
+
+body {
+  font-family: var(--font-sans);
+}

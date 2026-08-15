@@ -1,0 +1,6 @@
+{
+  "name": "صندوق قرض‌الحسنه بومگردی",
+  "description": "سامانه مدیریت صندوق قرض‌الحسنه بومگردی مجهز به سیستم امتیازدهی هوشمند بر اساس زمان پرداخت، قرعه‌کشی پویا، و پرونده اعضا به تاریخ شمسی",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

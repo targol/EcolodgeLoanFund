@@ -1,0 +1,379 @@
+import { Member, Payment, LotteryResult, FundSettings, PERS_MONTH_NAMES } from "../types";
+
+// Convert English numbers to Persian digits
+export function toPersianDigits(num: string | number | undefined | null): string {
+  if (num === undefined || num === null) return "";
+  const numStr = String(num);
+  const persianDigits = ["۰", "۱", "۲", "۳", "۴", "۵", "۶", "۷", "۸", "۹"];
+  return numStr.replace(/[0-9]/g, (w) => persianDigits[parseInt(w, 10)]);
+}
+
+// Convert Persian digits to English numbers
+export function toEnglishDigits(str: string): string {
+  if (!str) return "";
+  const persianDigits = [/۰/g, /۱/g, /۲/g, /۳/g, /۴/g, /۵/g, /۶/g, /۷/g, /۸/g, /۹/g];
+  const arabicDigits = [/٠/g, /١/g, /٢/g, /٣/g, /٤/g, /٥/g, /٦/g, /٧/g, /٨/g, /٩/g];
+  let out = str;
+  for (let i = 0; i < 10; i++) {
+    out = out.replace(persianDigits[i], String(i)).replace(arabicDigits[i], String(i));
+  }
+  return out;
+}
+
+// Compact Gregorian to Jalali converter
+export function gregorianToJalali(date: Date): string {
+  const g_y = date.getFullYear();
+  const g_m = date.getMonth() + 1;
+  const g_d = date.getDate();
+  const g_days_in_month = [0, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+  if (g_y % 4 === 0 && (g_y % 100 !== 0 || g_y % 400 === 0)) {
+    g_days_in_month[2] = 29;
+  }
+  const gy = g_y - 1600;
+  const gm = g_m - 1;
+  const gd = g_d - 1;
+  let g_day_no = 365 * gy + Math.floor((gy + 3) / 4) - Math.floor((gy + 99) / 100) + Math.floor((gy + 399) / 400);
+  for (let i = 0; i < gm; ++i) g_day_no += g_days_in_month[i + 1];
+  g_day_no += gd;
+  let j_day_no = g_day_no - 79;
+  const j_np = Math.floor(j_day_no / 12053);
+  j_day_no %= 12053;
+  let jy = 979 + 33 * j_np + 4 * Math.floor(j_day_no / 1461);
+  j_day_no %= 1461;
+  if (j_day_no >= 366) {
+    jy += Math.floor((j_day_no - 1) / 365);
+    j_day_no = (j_day_no - 1) % 365;
+  }
+  let i = 0;
+  while (i < 11 && j_day_no >= (i < 6 ? 31 : 30)) {
+    j_day_no -= i < 6 ? 31 : 30;
+    i++;
+  }
+  const jm = i + 1;
+  const jd = j_day_no + 1;
+  return `${jy}/${String(jm).padStart(2, '0')}/${String(jd).padStart(2, '0')}`;
+}
+
+// Compact Jalali to Gregorian converter
+export function jalaliToGregorian(jy: number, jm: number, jd: number): Date {
+  const j_day_no = 365 * (jy - 979) + Math.floor((jy - 979) / 33) * 8 + Math.floor(((jy - 979) % 33 + 3) / 4);
+  let g_day_no = j_day_no + 79;
+  for (let i = 0; i < jm - 1; ++i) {
+    g_day_no += i < 6 ? 31 : 30;
+  }
+  g_day_no += jd - 1;
+  let gy = 1600 + 400 * Math.floor(g_day_no / 146097);
+  g_day_no %= 146097;
+  let leap = true;
+  if (g_day_no >= 36525) {
+    g_day_no--;
+    gy += 100 * Math.floor(g_day_no / 36524);
+    g_day_no %= 36524;
+    if (g_day_no >= 365) {
+      g_day_no++;
+    } else {
+      leap = false;
+    }
+  }
+  gy += 4 * Math.floor(g_day_no / 1461);
+  g_day_no %= 1461;
+  if (g_day_no >= 366) {
+    leap = false;
+    g_day_no--;
+    gy += Math.floor(g_day_no / 365);
+    g_day_no %= 365;
+  }
+  let gd = g_day_no + 1;
+  const g_days_in_month = [0, 31, leap ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+  let gm = 1;
+  for (let i = 1; i <= 12; i++) {
+    if (gd <= g_days_in_month[i]) {
+      gm = i;
+      break;
+    }
+    gd -= g_days_in_month[i];
+  }
+  return new Date(gy, gm - 1, gd);
+}
+
+// Format numbers with commas (e.g., 2,000,000) inside Persian string
+export function formatCurrency(amount: number): string {
+  const formatted = new Intl.NumberFormat("en-US").format(amount);
+  return toPersianDigits(formatted) + " تومان";
+}
+
+// Calculate the payment score based on the day of payment and total amount paid (including qist and savings)
+export function calculatePaymentScore(day: number, totalAmount: number, dueDate: number = 5): { score: number; description: string; color: string } {
+  if (day < 1) return { score: 0, description: "عدم پرداخت", color: "text-red-500" };
+  
+  const units = Math.floor(totalAmount / 100000); // per 100,000 Tomans
+  const daysDiff = dueDate - day; // positive for early, negative for delay
+  const score = units * daysDiff;
+
+  if (day < dueDate) {
+    const earlyDays = dueDate - day;
+    return {
+      score,
+      description: `تعجیل خوش‌حسابی (${toPersianDigits(earlyDays)} روز قبل از موعد). محاسبه: ${toPersianDigits(units)} امتیاز به ازای هر ۱۰۰ هزار تومان × ${toPersianDigits(earlyDays)} روز = ${toPersianDigits(score)} امتیاز مثبت`,
+      color: "text-teal-750 bg-teal-50 dark:bg-teal-950/20"
+    };
+  } else if (day === dueDate) {
+    return {
+      score: 0,
+      description: "پرداخت روز موعد (بدون تاخیر یا تعجیل، امتیاز صفر)",
+      color: "text-teal-700 bg-teal-50"
+    };
+  } else {
+    const delayDays = day - dueDate;
+    return {
+      score,
+      description: `جریمه تاخیر (${toPersianDigits(delayDays)} روز دیرکرد). محاسبه: ${toPersianDigits(units)} امتیاز منفی به ازای هر ۱۰۰ هزار تومان × ${toPersianDigits(delayDays)} روز = ${toPersianDigits(Math.abs(score))} امتیاز منفی`,
+      color: "text-rose-600 bg-rose-50"
+    };
+  }
+}
+
+// Initial mock-data generator to give high depth and realism immediately
+export function getInitialMockData(): {
+  members: Member[];
+  payments: Payment[];
+  lotteries: LotteryResult[];
+  settings: FundSettings;
+} {
+  const settings: FundSettings = {
+    fundName: "صندوق قرض‌الحسنه و پس‌انداز حامی بومگردی",
+    monthlyAmount: 5500000, // 5,500,000 Toman Core Installment
+    savingsAmount: 500000,  // 500,000 Toman Savings Portion
+    lotteryDayOfMonth: 1,   // Automatic lottery on 1st day of month
+    autoDrawOnFirstOfMonth: true,
+    currentYear: 1405,
+    currentMonthIndex: 5,   // Shahrivar 1405 (index 5)
+    adminPassword: "admin",
+    telegramBotToken: "",
+    telegramChatId: "",
+    enableTelegramNotification: true,
+    telegramMessageTemplate: `🎉 <b>نتیجه قرعه‌کشی {ماه} {نام_صندوق}</b>
+
+🏆 <b>برنده خوش‌شانس این دوره:</b>
+👤 <b>{نام_برنده}</b>
+
+💰 <b>مبلغ تسهیلات:</b> {مبلغ_وام} تومان
+📅 <b>تاریخ برگزاری:</b> {تاریخ_قرعه_کشی}
+📌 <b>نوع تسهیلات:</b> {نوع_وام}
+
+🎬 <i>ویدیو و شبیه‌سازی انیمیشنی قرعه‌کشی با موفقیت انجام گردید.</i>
+
+✨ ضمن تبریک فراوان به برنده محترم، از تمامی اعضای خوش‌حساب صندوق بابت مشارکت صمیمانه سپاسگزاریم! 🙏`
+  };
+
+  const members: Member[] = [
+    {
+      id: "mem_1",
+      name: "ترگل انوری نژاد - خانه برزک",
+      phone: "۰۹۱۹۸۷۶۵۴۳۲",
+      password: "123",
+      joinDateShamsi: "۱۴۰۵/۰۳/۰۱",
+      score: 360,
+      hasWon: false,
+      winMonth: null,
+      avatarColor: "from-teal-500 to-emerald-600",
+      isAppliedForLoan: true,
+      isAppliedForEmergency: false,
+      loanRequestTime: Date.now() - 3600000,
+    },
+    {
+      id: "mem_2",
+      name: "اکبر رضوانیان - خونه نقلی",
+      phone: "۰۹۱۲۱۱۱۱۱۱۱",
+      password: "123",
+      joinDateShamsi: "۱۴۰۵/۰۳/۰۱",
+      score: 60,
+      hasWon: false,
+      winMonth: null,
+      avatarColor: "from-amber-500 to-orange-600",
+      isAppliedForLoan: false,
+      isAppliedForEmergency: false,
+    },
+    {
+      id: "mem_3",
+      name: "صادق کاظمیان - ارگ رادکان",
+      phone: "۰۹۳۵۲۲۲۲۲۲۲",
+      password: "123",
+      joinDateShamsi: "۱۴۰۵/۰۳/۰۱",
+      score: 180,
+      hasWon: false,
+      winMonth: null,
+      avatarColor: "from-rose-500 to-pink-600",
+      isAppliedForLoan: false,
+      isAppliedForEmergency: false,
+    },
+    {
+      id: "mem_4",
+      name: "عبدالحق پوریعقوب - خانه پوریعقوب",
+      phone: "۰۹۱۲۳۴۵۶۷۸۹",
+      password: "123",
+      joinDateShamsi: "۱۴۰۵/۰۳/۰۱",
+      score: 300,
+      hasWon: false,
+      winMonth: null,
+      avatarColor: "from-sky-500 to-blue-600",
+      isAppliedForLoan: false,
+      isAppliedForEmergency: false,
+    },
+    {
+      id: "mem_5",
+      name: "رامتین شهرت - نارتیتی",
+      phone: "۰۹۱۲۳۳۳۳۳۳۳",
+      password: "123",
+      joinDateShamsi: "۱۴۰۵/۰۳/۰۱",
+      score: 120,
+      hasWon: false,
+      winMonth: null,
+      avatarColor: "from-violet-500 to-indigo-600",
+      isAppliedForLoan: false,
+      isAppliedForEmergency: false,
+    },
+    {
+      id: "mem_6",
+      name: "منیر تقدیسی - نورخونه",
+      phone: "۰۹۰۲۴۴۴۴۴۴۴",
+      password: "123",
+      joinDateShamsi: "۱۴۰۵/۰۳/۰۱",
+      score: 60,
+      hasWon: false,
+      winMonth: null,
+      avatarColor: "from-fuchsia-500 to-purple-600",
+      isAppliedForLoan: false,
+      isAppliedForEmergency: false,
+    },
+    {
+      id: "mem_7",
+      name: "عبدالعلی ابراهیمی - خورشید سرخان جم",
+      phone: "۰۹۳۶۵۵۵۵۵۵۵",
+      password: "123",
+      joinDateShamsi: "۱۴۰۵/۰۳/۰۱",
+      score: 0,
+      hasWon: true,
+      winMonth: "خرداد ۱۴۰۵",
+      avatarColor: "from-cyan-500 to-blue-500",
+      isAppliedForLoan: false,
+      isAppliedForEmergency: false,
+    },
+    {
+      id: "mem_8",
+      name: "حسین کشتکارزاده - گیلانه جان",
+      phone: "۰۹۱۲۴۴۴۴۴۴۴",
+      password: "123",
+      joinDateShamsi: "۱۴۰۵/۰۳/۰۱",
+      score: -960,
+      hasWon: false,
+      winMonth: null,
+      avatarColor: "from-emerald-500 to-teal-600",
+      isAppliedForLoan: false,
+      isAppliedForEmergency: false,
+    },
+    {
+      id: "mem_9",
+      name: "زینب سالاری - گوهران",
+      phone: "۰۹۱۲۹۹۹۹۹۹۹",
+      password: "123",
+      joinDateShamsi: "۱۴۰۵/۰۳/۰۱",
+      score: 0,
+      hasWon: true,
+      winMonth: "مرداد ۱۴۰۵",
+      avatarColor: "from-orange-500 to-amber-600",
+      isAppliedForLoan: false,
+      isAppliedForEmergency: false,
+    },
+    {
+      id: "mem_10",
+      name: "نگار و عادل - راهنما",
+      phone: "۰۹۱۲۸۸۸۸۸۸۸",
+      password: "123",
+      joinDateShamsi: "۱۴۰۵/۰۳/۰۱",
+      score: -180,
+      hasWon: true,
+      winMonth: "تیر ۱۴۰۵",
+      avatarColor: "from-pink-500 to-rose-600",
+      isAppliedForLoan: false,
+      isAppliedForEmergency: false,
+    }
+  ];
+
+  const lotteries: LotteryResult[] = [
+    {
+      id: "lot_1",
+      monthName: "خرداد ۱۴۰۵",
+      winnerId: "mem_7",
+      winnerName: "عبدالعلی ابراهیمی - خورشید سرخان جم",
+      drawDateShamsi: "۱۴۰۵/۰۳/۰۶",
+      totalPoolAmount: 55000000,
+      drawMethod: "random",
+      participantsCount: 10,
+      loanType: "main"
+    },
+    {
+      id: "lot_2",
+      monthName: "تیر ۱۴۰۵",
+      winnerId: "mem_10",
+      winnerName: "نگار و عادل - راهنما",
+      drawDateShamsi: "۱۴۰۵/۰۴/۰۲",
+      totalPoolAmount: 55000000,
+      drawMethod: "weighted",
+      participantsCount: 9,
+      loanType: "main"
+    },
+    {
+      id: "lot_3",
+      monthName: "مرداد ۱۴۰۵",
+      winnerId: "mem_9",
+      winnerName: "زینب سالاری - گوهران",
+      drawDateShamsi: "۱۴۰۵/۰۴/۳۱",
+      totalPoolAmount: 55000000,
+      drawMethod: "weighted",
+      participantsCount: 8,
+      loanType: "main"
+    }
+  ];
+
+  const payments: Payment[] = [
+    // --- Khordad 1405 Payments ---
+    { id: "p_3_1", memberId: "mem_3", monthName: "خرداد ۱۴۰۵", amount: 5500000, savingsAmount: 500000, paymentDayShamsi: 7, paymentDateShamsi: "۱۴۰۵/۰۳/۰۷", scoreDelta: -120, status: "paid" },
+    { id: "p_3_2", memberId: "mem_1", monthName: "خرداد ۱۴۰۵", amount: 5500000, savingsAmount: 500000, paymentDayShamsi: 7, paymentDateShamsi: "۱۴۰۵/۰۳/۰۷", scoreDelta: -120, status: "paid" },
+    { id: "p_3_3", memberId: "mem_4", monthName: "خرداد ۱۴۰۵", amount: 5500000, savingsAmount: 500000, paymentDayShamsi: 8, paymentDateShamsi: "۱۴۰۵/۰۳/۰۸", scoreDelta: -180, status: "paid" },
+    { id: "p_3_4", memberId: "mem_7", monthName: "خرداد ۱۴۰۵", amount: 5500000, savingsAmount: 500000, paymentDayShamsi: 6, paymentDateShamsi: "۱۴۰۵/۰۳/۰۶", scoreDelta: 0, status: "paid" },
+    { id: "p_3_5", memberId: "mem_2", monthName: "خرداد ۱۴۰۵", amount: 5500000, savingsAmount: 500000, paymentDayShamsi: 8, paymentDateShamsi: "۱۴۰۵/۰۳/۰۸", scoreDelta: -180, status: "paid" },
+    { id: "p_3_6", memberId: "mem_9", monthName: "خرداد ۱۴۰۵", amount: 5500000, savingsAmount: 500000, paymentDayShamsi: 7, paymentDateShamsi: "۱۴۰۵/۰۳/۰۷", scoreDelta: -120, status: "paid" },
+    { id: "p_3_7", memberId: "mem_5", monthName: "خرداد ۱۴۰۵", amount: 5500000, savingsAmount: 500000, paymentDayShamsi: 8, paymentDateShamsi: "۱۴۰۵/۰۳/۰۸", scoreDelta: -180, status: "paid" },
+    { id: "p_3_8", memberId: "mem_6", monthName: "خرداد ۱۴۰۵", amount: 5500000, savingsAmount: 500000, paymentDayShamsi: 8, paymentDateShamsi: "۱۴۰۵/۰۳/۰۸", scoreDelta: -180, status: "paid" },
+    { id: "p_3_9", memberId: "mem_8", monthName: "خرداد ۱۴۰۵", amount: 5500000, savingsAmount: 500000, paymentDayShamsi: 10, paymentDateShamsi: "۱۴۰۵/۰۳/۱۰", scoreDelta: -300, status: "paid" },
+    { id: "p_3_10", memberId: "mem_10", monthName: "خرداد ۱۴۰۵", amount: 5500000, savingsAmount: 500000, paymentDayShamsi: 8, paymentDateShamsi: "۱۴۰۵/۰۳/۰۸", scoreDelta: -180, status: "paid" },
+
+    // --- Tir 1405 Payments ---
+    { id: "p_4_1", memberId: "mem_3", monthName: "تیر ۱۴۰۵", amount: 5500000, savingsAmount: 500000, paymentDayShamsi: 4, paymentDateShamsi: "۱۴۰۵/۰۴/۰۴", scoreDelta: 60, status: "paid" },
+    { id: "p_4_2", memberId: "mem_1", monthName: "تیر ۱۴۰۵", amount: 5500000, savingsAmount: 500000, paymentDayShamsi: 3, paymentDateShamsi: "۱۴۰۵/۰۴/۰۳", scoreDelta: 120, status: "paid" },
+    { id: "p_4_3", memberId: "mem_4", monthName: "تیر ۱۴۰۵", amount: 5500000, savingsAmount: 500000, paymentDayShamsi: 3, paymentDateShamsi: "۱۴۰۵/۰۴/۰۳", scoreDelta: 120, status: "paid" },
+    { id: "p_4_4", memberId: "mem_7", monthName: "تیر ۱۴۰۵", amount: 5500000, savingsAmount: 500000, paymentDayShamsi: 3, paymentDateShamsi: "۱۴۰۵/۰۴/۰۳", scoreDelta: 0, status: "paid" },
+    { id: "p_4_5", memberId: "mem_2", monthName: "تیر ۱۴۰۵", amount: 5500000, savingsAmount: 500000, paymentDayShamsi: 4, paymentDateShamsi: "۱۴۰۵/۰۴/۰۴", scoreDelta: 60, status: "paid" },
+    { id: "p_4_6", memberId: "mem_9", monthName: "تیر ۱۴۰۵", amount: 5500000, savingsAmount: 500000, paymentDayShamsi: 3, paymentDateShamsi: "۱۴۰۵/۰۴/۰۳", scoreDelta: 120, status: "paid" },
+    { id: "p_4_7", memberId: "mem_5", monthName: "تیر ۱۴۰۵", amount: 5500000, savingsAmount: 500000, paymentDayShamsi: 4, paymentDateShamsi: "۱۴۰۵/۰۴/۰۴", scoreDelta: 60, status: "paid" },
+    { id: "p_4_8", memberId: "mem_6", monthName: "تیر ۱۴۰۵", amount: 5500000, savingsAmount: 500000, paymentDayShamsi: 5, paymentDateShamsi: "۱۴۰۵/۰۴/۰۵", scoreDelta: 0, status: "paid" },
+    { id: "p_4_9", memberId: "mem_8", monthName: "تیر ۱۴۰۵", amount: 5500000, savingsAmount: 500000, paymentDayShamsi: 11, paymentDateShamsi: "۱۴۰۵/۰۴/۱۱", scoreDelta: -360, status: "paid" },
+    { id: "p_4_10", memberId: "mem_10", monthName: "تیر ۱۴۰۵", amount: 5500000, savingsAmount: 500000, paymentDayShamsi: 2, paymentDateShamsi: "۱۴۰۵/۰۴/۰۲", scoreDelta: 0, status: "paid" },
+
+    // --- Mordad 1405 Payments ---
+    { id: "p_5_1", memberId: "mem_3", monthName: "مرداد ۱۴۰۵", amount: 5500000, savingsAmount: 500000, paymentDayShamsi: 1, paymentDateShamsi: "۱۴۰۵/۰۵/۰۱", scoreDelta: 240, status: "paid" },
+    { id: "p_5_2", memberId: "mem_1", monthName: "مرداد ۱۴۰۵", amount: 5500000, savingsAmount: 500000, paymentDayShamsi: 31, paymentDateShamsi: "۱۴۰۵/۰۴/۳۱", scoreDelta: 360, status: "paid" },
+    { id: "p_5_3", memberId: "mem_4", monthName: "مرداد ۱۴۰۵", amount: 5500000, savingsAmount: 500000, paymentDayShamsi: 31, paymentDateShamsi: "۱۴۰۵/۰۴/۳۱", scoreDelta: 360, status: "paid" },
+    { id: "p_5_4", memberId: "mem_7", monthName: "مرداد ۱۴۰۵", amount: 5500000, savingsAmount: 500000, paymentDayShamsi: 2, paymentDateShamsi: "۱۴۰۵/۰۵/۰۲", scoreDelta: 0, status: "paid" },
+    { id: "p_5_5", memberId: "mem_2", monthName: "مرداد ۱۴۰۵", amount: 5500000, savingsAmount: 500000, paymentDayShamsi: 2, paymentDateShamsi: "۱۴۰۵/۰۵/۰۲", scoreDelta: 180, status: "paid" },
+    { id: "p_5_6", memberId: "mem_9", monthName: "مرداد ۱۴۰۵", amount: 5500000, savingsAmount: 500000, paymentDayShamsi: 31, paymentDateShamsi: "۱۴۰۵/۰۴/۳۱", scoreDelta: 0, status: "paid" },
+    { id: "p_5_7", memberId: "mem_5", monthName: "مرداد ۱۴۰۵", amount: 5500000, savingsAmount: 500000, paymentDayShamsi: 1, paymentDateShamsi: "۱۴۰۵/۰۵/۰۱", scoreDelta: 240, status: "paid" },
+    { id: "p_5_8", memberId: "mem_6", monthName: "مرداد ۱۴۰۵", amount: 5500000, savingsAmount: 500000, paymentDayShamsi: 1, paymentDateShamsi: "۱۴۰۵/۰۵/۰۱", scoreDelta: 240, status: "paid" },
+    { id: "p_5_9", memberId: "mem_8", monthName: "مرداد ۱۴۰۵", amount: 5500000, savingsAmount: 500000, paymentDayShamsi: 10, paymentDateShamsi: "۱۴۰۵/۰۵/۱۰", scoreDelta: -300, status: "paid" },
+    { id: "p_5_10", memberId: "mem_10", monthName: "مرداد ۱۴۰۵", amount: 5500000, savingsAmount: 500000, paymentDayShamsi: 1, paymentDateShamsi: "۱۴۰۵/۰۵/۰۱", scoreDelta: 0, status: "paid" }
+  ];
+
+  return { members, payments, lotteries, settings };
+}
+
