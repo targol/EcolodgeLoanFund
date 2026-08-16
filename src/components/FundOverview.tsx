@@ -1,6 +1,6 @@
-import { Member, Payment, LotteryResult, FundSettings, PERS_MONTH_NAMES } from "../types";
+import { Member, Payment, LotteryResult, FundSettings, PERS_MONTH_NAMES, FundCycle } from "../types";
 import { toPersianDigits, formatCurrency } from "../utils/jalali";
-import { Users, Coins, Calendar, Trophy, Sparkles, TrendingUp, Shield, Layers } from "lucide-react";
+import { Trophy, Sparkles, TrendingUp, Shield, Wallet } from "lucide-react";
 import { motion } from "motion/react";
 
 interface FundOverviewProps {
@@ -8,31 +8,49 @@ interface FundOverviewProps {
   payments: Payment[];
   lotteries: LotteryResult[];
   settings: FundSettings;
+  cycles?: FundCycle[];
 }
 
-export default function FundOverview({ members, payments, lotteries, settings }: FundOverviewProps) {
+export default function FundOverview({ members, payments, lotteries, settings, cycles }: FundOverviewProps) {
   const currentMonthName = `${PERS_MONTH_NAMES[settings.currentMonthIndex]} ${settings.currentYear}`;
   
-  // Calculations (excluding admin who is not in members)
-  const totalMembers = members.length;
-  const totalShares = members.reduce((sum, m) => sum + (m.currentCycleShares || 1), 0);
-  const wonCount = members.filter(m => m.hasWon).length;
-  const pendingCount = totalMembers - wonCount;
+  // Active cycle determination
+  const activeCycle = cycles?.find(c => c.status === "active") || (cycles && cycles[cycles.length - 1]);
+  const activeCycleMembers = activeCycle?.memberIds 
+    ? members.filter(m => activeCycle.memberIds.includes(m.id)) 
+    : members;
   
-  // 1. Core Installment component this month
-  const currentMonthPayments = payments.filter(p => p.monthName === currentMonthName && p.status === "paid");
-  const totalInstallmentMonth = currentMonthPayments.reduce((sum, p) => sum + p.amount, 0);
-  const expectedInstallmentMonth = totalShares * settings.monthlyAmount;
+  // Active cycle calculations
+  const totalActiveMembers = activeCycleMembers.length;
+  const totalActiveShares = activeCycleMembers.reduce((sum, m) => {
+    const shares = activeCycle?.memberShares?.[m.id] ?? m.currentCycleShares ?? 1;
+    return sum + shares;
+  }, 0);
   
-  // 2. Savings component this month
-  const totalSavingsMonth = currentMonthPayments.reduce((sum, p) => sum + (p.savingsAmount || 0), 0);
-  const expectedSavingsMonth = totalShares * (settings.savingsAmount || 500000);
+  const monthlyLoanAmount = activeCycle?.monthlyAmount || settings.monthlyAmount || 5500000;
+  const monthlySavingsAmount = activeCycle?.savingsAmount || settings.savingsAmount || 500000;
+  const monthlyTotalPerShare = monthlyLoanAmount + monthlySavingsAmount;
 
-  // 3. Accumulated Savings portfolio sum (retained for end of cycle / emergency loans)
+  // Monthly expected totals
+  const expectedMonthlyCommitment = totalActiveShares * monthlyTotalPerShare;
+  const expectedMonthlyLoanPool = totalActiveShares * monthlyLoanAmount;
+  const expectedMonthlySavingsPool = totalActiveShares * monthlySavingsAmount;
+
+  // Current month collected payments for active members
+  const currentMonthPayments = payments.filter(
+    p => p.monthName === currentMonthName && 
+         p.status === "paid" && 
+         activeCycleMembers.some(m => m.id === p.memberId)
+  );
+  const totalCollectedLoanMonth = currentMonthPayments.reduce((sum, p) => sum + p.amount, 0);
+  const totalCollectedSavingsMonth = currentMonthPayments.reduce((sum, p) => sum + (p.savingsAmount || 0), 0);
+  const totalCollectedMonth = totalCollectedLoanMonth + totalCollectedSavingsMonth;
+
+  // Accumulated Savings portfolio sum across cycle
   const allPaidPayments = payments.filter(p => p.status === "paid");
   const accumulatedSavingsTotal = allPaidPayments.reduce((sum, p) => sum + (p.savingsAmount || 0), 0);
 
-  // 4. Spent emergency loans from savings
+  // Spent emergency loans from savings
   const totalEmergencyLoansPaid = lotteries
     .filter(l => l.loanType === "emergency")
     .reduce((sum, l) => sum + l.totalPoolAmount, 0);
@@ -44,7 +62,7 @@ export default function FundOverview({ members, payments, lotteries, settings }:
   const totalPaidAllTime = allPaidPayments.reduce((sum, p) => sum + p.amount + (p.savingsAmount || 0), 0);
 
   // Scoring leaderboards (highest score first)
-  const topMembers = [...members].sort((a, b) => b.score - a.score).slice(0, 3);
+  const topMembers = [...activeCycleMembers].sort((a, b) => b.score - a.score).slice(0, 3);
 
   // Last lottery winner for hero presentation
   const latestLotteryWinner = lotteries.length > 0 ? lotteries[lotteries.length - 1] : null;
@@ -54,7 +72,8 @@ export default function FundOverview({ members, payments, lotteries, settings }:
       {/* Right Column (2/3 width on desktop) - Key Statistics Cards */}
       <div className="md:col-span-2 space-y-6">
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-          {/* Card 1: Main Loan installments this month */}
+          
+          {/* Unified Card 1: Total Monthly Collection (Loans + Savings) */}
           <motion.div 
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
@@ -63,96 +82,111 @@ export default function FundOverview({ members, payments, lotteries, settings }:
           >
             <div className="flex justify-between items-start">
               <div>
-                <p className="text-[11px] font-bold text-slate-500 mb-1">وصولی اقساط ثابت این ماه</p>
+                <p className="text-[11px] font-black text-slate-700 mb-1 flex items-center gap-1.5">
+                  <span>وصولی کل تعهدات این ماه</span>
+                  <span className="text-[9px] px-1.5 py-0.2 bg-teal-50 text-teal-800 rounded font-bold">
+                    {PERS_MONTH_NAMES[settings.currentMonthIndex]}
+                  </span>
+                </p>
                 <div className="mt-2">
-                  <span className="text-xl font-black text-teal-700 tracking-tight">
-                    {toPersianDigits(new Intl.NumberFormat("en-US").format(totalInstallmentMonth))}
+                  <span className="text-xl font-black text-teal-800 tracking-tight font-mono">
+                    {toPersianDigits(new Intl.NumberFormat("en-US").format(totalCollectedMonth))}
                   </span>
                   <span className="text-xs mr-1 text-slate-400">تومان</span>
                 </div>
               </div>
-              <div className="p-2 bg-teal-50 border border-teal-100 rounded text-teal-700">
-                <Coins className="w-4 h-4" />
+              <div className="p-2 bg-teal-50 border border-teal-100 rounded text-teal-800">
+                <Wallet className="w-4 h-4" />
               </div>
             </div>
             
-            <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500">
-              <span className="font-medium text-slate-400">کل تعهد مصوب:</span>
-              <span className="font-bold text-slate-700">{formatCurrency(expectedInstallmentMonth)}</span>
+            <div className="mt-3 pt-3 border-t border-slate-100 space-y-1">
+              <div className="flex items-center justify-between text-[11px] text-slate-600">
+                <span className="font-medium text-slate-500">کل تعهد مصوب ماه:</span>
+                <span className="font-black text-slate-800">{formatCurrency(expectedMonthlyCommitment)}</span>
+              </div>
+              <div className="text-[9.5px] text-slate-450 flex justify-between font-mono">
+                <span>وام: {formatCurrency(expectedMonthlyLoanPool)}</span>
+                <span>پس‌انداز: {formatCurrency(expectedMonthlySavingsPool)}</span>
+              </div>
             </div>
-            <div className="w-full bg-slate-100 h-1.5 rounded-full mt-2 overflow-hidden">
+
+            <div className="w-full bg-slate-100 h-1.5 rounded-full mt-2.5 overflow-hidden">
               <div 
-                className="bg-teal-650 h-full rounded-full transition-all duration-500"
-                style={{ width: `${expectedInstallmentMonth > 0 ? (totalInstallmentMonth / expectedInstallmentMonth) * 100 : 0}%` }}
+                className="bg-teal-700 h-full rounded-full transition-all duration-500"
+                style={{ width: `${expectedMonthlyCommitment > 0 ? Math.min(100, (totalCollectedMonth / expectedMonthlyCommitment) * 100) : 0}%` }}
               />
             </div>
           </motion.div>
 
-          {/* Card 2: Savings Component of current Month */}
+          {/* Card 2: Main Monthly Lottery Loan Pool */}
           <motion.div 
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.1 }}
             className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between"
-            id="stat-card-savings-month"
+            id="stat-card-lottery-amount"
           >
             <div className="flex justify-between items-start">
               <div>
-                <p className="text-[11px] font-bold text-slate-500 mb-1">وصولی پس‌انداز ثابت این ماه</p>
+                <p className="text-[11px] font-black text-slate-700 mb-1">مبلغ وام قرعه‌کشی هر ماه</p>
                 <div className="mt-2">
-                  <span className="text-xl font-black text-blue-700 tracking-tight font-mono">
-                    {toPersianDigits(new Intl.NumberFormat("en-US").format(totalSavingsMonth))}
+                  <span className="text-xl font-black text-indigo-900 tracking-tight font-mono">
+                    {toPersianDigits(new Intl.NumberFormat("en-US").format(expectedMonthlyLoanPool))}
                   </span>
                   <span className="text-xs mr-1 text-slate-400">تومان</span>
                 </div>
               </div>
-              <div className="p-2 bg-blue-50 border border-blue-100 rounded text-blue-700">
-                <Layers className="w-4 h-4" />
+              <div className="p-2 bg-indigo-50 border border-indigo-100 rounded text-indigo-800">
+                <Trophy className="w-4 h-4" />
               </div>
             </div>
             
-            <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500">
-              <span className="font-medium text-slate-400">تعهد پس‌انداز:</span>
-              <span className="font-bold text-slate-700">{formatCurrency(expectedSavingsMonth)}</span>
-            </div>
-            <div className="w-full bg-slate-100 h-1.5 rounded-full mt-2 overflow-hidden">
-              <div 
-                className="bg-blue-600 h-full rounded-full transition-all duration-500"
-                style={{ width: `${expectedSavingsMonth > 0 ? (totalSavingsMonth / expectedSavingsMonth) * 100 : 0}%` }}
-              />
+            <div className="mt-3 pt-3 border-t border-slate-100 space-y-1">
+              <div className="flex items-center justify-between text-[11px] text-slate-600">
+                <span className="font-medium text-slate-500">سهم‌های فعال دوره:</span>
+                <span className="font-black text-indigo-900">
+                  {toPersianDigits(totalActiveShares)} سهم ({toPersianDigits(totalActiveMembers)} عضو)
+                </span>
+              </div>
+              <p className="text-[9.5px] text-slate-400 leading-tight">
+                قسط هر سهم: {formatCurrency(monthlyLoanAmount)}
+              </p>
             </div>
           </motion.div>
 
-          {/* Card 3: Accumulated Savings Portfolio (For Emergency Loans) */}
+          {/* Card 3: Accumulated Gold Savings Portfolio */}
           <motion.div 
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.2 }}
-            className="bg-slate-55 p-5 rounded-xl border border-slate-300 shadow-sm flex flex-col justify-between"
+            className="bg-amber-50/40 p-5 rounded-xl border border-amber-200/80 shadow-sm flex flex-col justify-between"
             id="stat-card-accumulated-savings"
           >
             <div className="flex justify-between items-start">
               <div>
-                <p className="text-[11px] font-black text-slate-600 mb-1">صندوق پس‌انداز انباشته</p>
+                <p className="text-[11px] font-black text-amber-950 mb-1">صندوق پس‌انداز طلا (انباشته)</p>
                 <div className="mt-2">
-                  <span className="text-xl font-black text-blue-900 tracking-tight">
-                    {toPersianDigits(new Intl.NumberFormat("en-US").format(netEmergencyPoolAvailable))}
+                  <span className="text-xl font-black text-amber-900 tracking-tight font-mono">
+                    {toPersianDigits(new Intl.NumberFormat("en-US").format(accumulatedSavingsTotal))}
                   </span>
-                  <span className="text-xs mr-1 text-slate-500">تومان</span>
+                  <span className="text-xs mr-1 text-amber-700/60">تومان</span>
                 </div>
               </div>
-              <div className="p-2 bg-blue-50 border border-blue-150 rounded text-blue-800">
+              <div className="p-2 bg-amber-100 border border-amber-200 rounded text-amber-900">
                 <Shield className="w-4 h-4" />
               </div>
             </div>
 
-            <div className="mt-4 pt-3 border-t border-slate-200 flex items-center justify-between text-[10px] text-slate-500">
-              <span className="font-bold text-slate-500">پس‌انداز کل دوره:</span>
-              <span className="font-black text-blue-800">{formatCurrency(accumulatedSavingsTotal)}</span>
+            <div className="mt-3 pt-3 border-t border-amber-200/60 space-y-1">
+              <div className="flex items-center justify-between text-[11px] text-amber-950">
+                <span className="font-bold text-amber-900">پس‌انداز ماهانه هر سهم:</span>
+                <span className="font-black text-amber-950">{formatCurrency(monthlySavingsAmount)}</span>
+              </div>
+              <span className="text-[9px] text-amber-800 block leading-tight">
+                سرمایه‌گذاری در صندوق طلا (تسویه پایان دوره)
+              </span>
             </div>
-            <span className="text-[9px] text-slate-400 mt-1 block leading-tight">
-              اندوخته وام‌های ملّی و اضطراری
-            </span>
           </motion.div>
         </div>
 

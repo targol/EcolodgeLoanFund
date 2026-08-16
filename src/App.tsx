@@ -71,7 +71,7 @@ export default function App() {
 
   // Initialize state from localStorage or load high fidelity mock data + check Cloudflare
   useEffect(() => {
-    const CURRENT_VERSION = "v6.0_multi_cycles_gold";
+    const CURRENT_VERSION = "v7.0_founding_members_and_cycle_shares_sync";
     const savedVersion = localStorage.getItem("mehr_fund_db_version");
     
     // If version changed, preserve telegram settings if user already configured them
@@ -107,10 +107,23 @@ export default function App() {
 
       // Auto update Zainab Salar -> Zainab Salari in existing storage
       parsedMembers = parsedMembers.map(m => {
+        let updatedName = m.name;
         if (m.name.includes("زینب سالار") && !m.name.includes("زینب سالاری")) {
-          return { ...m, name: m.name.replace("زینب سالار", "زینب سالاری") };
+          updatedName = m.name.replace("زینب سالار", "زینب سالاری");
         }
-        return m;
+        
+        // Founding members default attribution
+        const isFounding = m.isFoundingMember !== undefined
+          ? m.isFoundingMember
+          : (m.id === "mem_1" || m.id === "mem_2" || m.id === "mem_3" || m.name.includes("ترگل") || m.name.includes("رضوانیان") || m.name.includes("کاظمیان"));
+
+        return { 
+          ...m, 
+          name: updatedName,
+          currentCycleShares: m.currentCycleShares || 1,
+          isFoundingMember: isFounding,
+          participatedCycles: m.participatedCycles || [1, 2, 3]
+        };
       });
 
       parsedLotteries = parsedLotteries.map(l => {
@@ -118,6 +131,36 @@ export default function App() {
           return { ...l, winnerName: l.winnerName.replace("زینب سالار", "زینب سالاری") };
         }
         return l;
+      });
+
+      // Synchronize monthly amount & savings settings
+      if (savedVersion !== CURRENT_VERSION) {
+        parsedSettings.monthlyAmount = 5500000;
+        parsedSettings.savingsAmount = 500000;
+        parsedSettings.goldInvestmentNote = "ماهیانه ۵۰۰,۰۰۰ تومان از پرداخت هر عضو در صندوق طلا سرمایه‌گذاری می‌شود.";
+      } else {
+        if (!parsedSettings.savingsAmount) parsedSettings.savingsAmount = 500000;
+        if (!parsedSettings.monthlyAmount || parsedSettings.monthlyAmount < 1000000) parsedSettings.monthlyAmount = 5500000;
+      }
+
+      // Synchronize cycles
+      parsedCycles = parsedCycles.map(c => {
+        if (c.cycleNumber === 3 || c.status === "active") {
+          const currentSharesMap: Record<string, number> = { ...(c.memberShares || {}) };
+          (c.memberIds || []).forEach(mId => {
+            const memberObj = parsedMembers.find(m => m.id === mId);
+            if (!currentSharesMap[mId]) {
+              currentSharesMap[mId] = memberObj?.currentCycleShares || 1;
+            }
+          });
+          return {
+            ...c,
+            monthlyAmount: parsedSettings.monthlyAmount || 5500000,
+            savingsAmount: parsedSettings.savingsAmount || 500000,
+            memberShares: currentSharesMap
+          };
+        }
+        return c;
       });
 
       if (preservedTelegramToken && !parsedSettings.telegramBotToken) {
@@ -733,6 +776,7 @@ export default function App() {
             payments={payments}
             lotteries={lotteries}
             settings={settings}
+            cycles={cycles}
           />
         </section>
 

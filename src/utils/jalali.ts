@@ -186,7 +186,8 @@ export function getInitialMockData(): {
       isAppliedForEmergency: false,
       loanRequestTime: Date.now() - 3600000,
       participatedCycles: [1, 2, 3],
-      currentCycleShares: 1
+      currentCycleShares: 1,
+      isFoundingMember: true
     },
     {
       id: "mem_2",
@@ -202,7 +203,8 @@ export function getInitialMockData(): {
       isAppliedForLoan: false,
       isAppliedForEmergency: false,
       participatedCycles: [1, 2, 3],
-      currentCycleShares: 1
+      currentCycleShares: 1,
+      isFoundingMember: true
     },
     {
       id: "mem_3",
@@ -218,7 +220,8 @@ export function getInitialMockData(): {
       isAppliedForLoan: false,
       isAppliedForEmergency: false,
       participatedCycles: [1, 2, 3],
-      currentCycleShares: 1
+      currentCycleShares: 1,
+      isFoundingMember: true
     },
     {
       id: "mem_4",
