@@ -98,6 +98,10 @@ export default function CycleManager({
   const [editEndDate, setEditEndDate] = useState(currentCycle?.endShamsiDate || "");
   const [editNotes, setEditNotes] = useState(currentCycle?.notes || "");
   const [editGoldNote, setEditGoldNote] = useState(currentCycle?.goldInvestmentNote || "");
+  const [editMemberIds, setEditMemberIds] = useState<string[]>(currentCycle?.memberIds || members.map(m => m.id));
+  const [editMemberShares, setEditMemberShares] = useState<Record<string, number>>(
+    currentCycle?.memberShares || members.reduce((acc, m) => ({ ...acc, [m.id]: m.currentCycleShares || 1 }), {})
+  );
 
   useEffect(() => {
     if (currentCycle) {
@@ -108,8 +112,42 @@ export default function CycleManager({
       setEditEndDate(currentCycle.endShamsiDate || "");
       setEditNotes(currentCycle.notes || "");
       setEditGoldNote(currentCycle.goldInvestmentNote || "");
+      setEditMemberIds(currentCycle.memberIds || members.map(m => m.id));
+      setEditMemberShares(currentCycle.memberShares || members.reduce((acc, m) => ({ ...acc, [m.id]: m.currentCycleShares || 1 }), {}));
     }
-  }, [currentCycle, settings.monthlyAmount, settings.savingsAmount]);
+  }, [currentCycle, settings.monthlyAmount, settings.savingsAmount, members]);
+
+  const handleToggleEditMember = (memberId: string) => {
+    if (editMemberIds.includes(memberId)) {
+      setEditMemberIds(editMemberIds.filter(id => id !== memberId));
+    } else {
+      setEditMemberIds([...editMemberIds, memberId]);
+      if (!editMemberShares[memberId]) {
+        setEditMemberShares({ ...editMemberShares, [memberId]: 1 });
+      }
+    }
+  };
+
+  const handleEditMemberShareChange = (memberId: string, delta: number) => {
+    const current = editMemberShares[memberId] || 1;
+    const updated = Math.max(1, current + delta);
+    setEditMemberShares({
+      ...editMemberShares,
+      [memberId]: updated
+    });
+  };
+
+  const handleQuickAdjustShare = (memberId: string, newShareCount: number) => {
+    if (!currentCycle || currentCycle.status === "completed") return;
+    const safeCount = Math.max(1, newShareCount);
+    const updatedShares = {
+      ...(currentCycle.memberShares || {}),
+      [memberId]: safeCount
+    };
+    onUpdateCycle(currentCycle.id, {
+      memberShares: updatedShares
+    });
+  };
 
   const handleToggleMemberSelect = (memberId: string) => {
     if (selectedMemberIds.includes(memberId)) {
@@ -171,11 +209,13 @@ export default function CycleManager({
       startShamsiDate: editStartDate.trim(),
       endShamsiDate: editEndDate.trim(),
       notes: editNotes.trim(),
-      goldInvestmentNote: editGoldNote.trim()
+      goldInvestmentNote: editGoldNote.trim(),
+      memberIds: editMemberIds,
+      memberShares: editMemberShares
     });
 
     setIsEditCycleModalOpen(false);
-    alert("مشخصات دوره فعال با موفقیت به‌روزرسانی شد.");
+    alert("مشخصات دوره و سهم اعضا با موفقیت ذخیره و اعمال گردید.");
   };
 
   const handleCloseAndLockCycle = () => {
@@ -497,7 +537,7 @@ export default function CycleManager({
                     return (
                       <div
                         key={mId}
-                        className="p-2.5 bg-slate-50 border border-slate-200 rounded-lg flex items-center justify-between text-xs"
+                        className="p-2.5 bg-slate-50 border border-slate-200 rounded-lg flex items-center justify-between text-xs hover:border-slate-300 transition-all"
                       >
                         <div className="flex items-center gap-2 overflow-hidden">
                           <div className="w-7 h-7 rounded-full bg-teal-800 text-white font-bold text-[10px] flex items-center justify-center shrink-0">
@@ -512,18 +552,43 @@ export default function CycleManager({
                         </div>
 
                         <div className="flex items-center gap-1.5 shrink-0">
-                          {shares > 1 && (
-                            <span className="text-[10px] bg-indigo-100 text-indigo-800 font-bold px-1.5 py-0.5 rounded border border-indigo-200">
-                              {toPersianDigits(shares)} سهم
-                            </span>
+                          {!isCurrentCycleLocked ? (
+                            <div className="flex items-center bg-white border border-slate-200 rounded-md shadow-2xs overflow-hidden">
+                              <button
+                                type="button"
+                                title="کاهش سهم"
+                                disabled={shares <= 1}
+                                onClick={() => handleQuickAdjustShare(mId, shares - 1)}
+                                className="px-1.5 py-0.5 text-slate-400 hover:text-slate-700 disabled:opacity-30 disabled:cursor-not-allowed hover:bg-slate-50 font-bold"
+                              >
+                                -
+                              </button>
+                              <span className="px-1.5 py-0.5 font-bold text-[11px] text-indigo-900 bg-indigo-50/60 min-w-[34px] text-center">
+                                {toPersianDigits(shares)} سهم
+                              </span>
+                              <button
+                                type="button"
+                                title="افزایش سهم"
+                                onClick={() => handleQuickAdjustShare(mId, shares + 1)}
+                                className="px-1.5 py-0.5 text-slate-400 hover:text-slate-700 hover:bg-slate-50 font-bold"
+                              >
+                                +
+                              </button>
+                            </div>
+                          ) : (
+                            shares > 1 && (
+                              <span className="text-[10px] bg-indigo-100 text-indigo-800 font-bold px-1.5 py-0.5 rounded border border-indigo-200">
+                                {toPersianDigits(shares)} سهم
+                              </span>
+                            )
                           )}
                           {isWinner ? (
                             <span className="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-1.5 py-0.5 rounded border border-emerald-200">
-                              برنده {member.winMonth}
+                              برنده {member?.winMonth}
                             </span>
                           ) : (
                             <span className="text-[10px] bg-slate-200 text-slate-600 px-1.5 py-0.5 rounded">
-                              در نوبت قرعه‌کشی
+                              در نوبت
                             </span>
                           )}
                         </div>
@@ -900,11 +965,11 @@ export default function CycleManager({
       {/* MODAL: EDIT ACTIVE CYCLE */}
       {isEditCycleModalOpen && currentCycle && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs font-sans">
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-lg w-full p-6 text-right space-y-4">
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-xl w-full p-6 text-right max-h-[92vh] overflow-y-auto space-y-4">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
               <div className="flex items-center gap-2">
                 <Edit3 className="w-5 h-5 text-teal-700" />
-                <h3 className="text-sm font-black text-slate-850">ویرایش مشخصات دوره فعال</h3>
+                <h3 className="text-sm font-black text-slate-850">ویرایش مشخصات و سهم‌های دوره فعال ({currentCycle.title})</h3>
               </div>
               <button
                 type="button"
@@ -915,7 +980,7 @@ export default function CycleManager({
               </button>
             </div>
 
-            <form onSubmit={handleSaveActiveCycleEdits} className="space-y-3.5 text-xs">
+            <form onSubmit={handleSaveActiveCycleEdits} className="space-y-4 text-xs">
               <div>
                 <label className="block font-bold text-slate-700 mb-1">عنوان دوره:</label>
                 <input
@@ -951,6 +1016,102 @@ export default function CycleManager({
                     className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg font-bold text-slate-800 focus:outline-none focus:border-teal-700"
                   />
                   <span className="text-[10px] text-teal-600 mt-0.5 block">{formatCurrency(Number(editSavingsAmount) || 0)}</span>
+                </div>
+              </div>
+
+              {/* Live Summary Calculation Box */}
+              <div className="p-3 bg-teal-50/70 border border-teal-200 rounded-xl space-y-2">
+                <div className="flex items-center justify-between text-[11px] font-bold text-teal-950">
+                  <span>مجموع پرداختی ماهانه هر سهم:</span>
+                  <span className="text-sm font-black text-teal-900">
+                    {formatCurrency((Number(editMonthlyAmount) || 0) + (Number(editSavingsAmount) || 0))}
+                  </span>
+                </div>
+                <div className="grid grid-cols-3 gap-2 text-[10px] text-teal-800 pt-2 border-t border-teal-100">
+                  <div>
+                    <span className="text-teal-600 block">تعداد اعضای انتخابی:</span>
+                    <strong>{toPersianDigits(editMemberIds.length)} عضو</strong>
+                  </div>
+                  <div>
+                    <span className="text-teal-600 block">مجموع کل سهم‌ها:</span>
+                    <strong className="text-indigo-800 font-black">
+                      {toPersianDigits(editMemberIds.reduce((sum, mId) => sum + (editMemberShares[mId] || 1), 0))} سهم
+                    </strong>
+                  </div>
+                  <div>
+                    <span className="text-teal-600 block">مبلغ کل وام ماهانه:</span>
+                    <strong className="text-teal-950 font-black">
+                      {formatCurrency((Number(editMonthlyAmount) || 0) * editMemberIds.reduce((sum, mId) => sum + (editMemberShares[mId] || 1), 0))}
+                    </strong>
+                  </div>
+                </div>
+              </div>
+
+              {/* Members & Shares Configuration in Active Cycle */}
+              <div>
+                <label className="block font-bold text-slate-800 mb-2 flex items-center justify-between">
+                  <span>تنظیم اعضا و تعداد سهم هر شخص در این دوره:</span>
+                  <span className="text-[11px] text-slate-400 font-normal">
+                    (تیک عضویت و مشخص کردن تعداد سهم)
+                  </span>
+                </label>
+
+                <div className="max-h-48 overflow-y-auto space-y-1.5 p-2 bg-slate-50 border border-slate-200 rounded-xl">
+                  {members.map(member => {
+                    const isIncluded = editMemberIds.includes(member.id);
+                    const shares = editMemberShares[member.id] || 1;
+                    return (
+                      <div
+                        key={member.id}
+                        className={`p-2 rounded-lg border transition-all flex items-center justify-between gap-2 text-xs ${
+                          isIncluded
+                            ? "bg-white border-teal-200 shadow-2xs"
+                            : "bg-slate-100/60 border-slate-200 opacity-60"
+                        }`}
+                      >
+                        <div className="flex items-center gap-2 overflow-hidden">
+                          <input
+                            type="checkbox"
+                            checked={isIncluded}
+                            onChange={() => handleToggleEditMember(member.id)}
+                            className="rounded text-teal-800 focus:ring-teal-700 w-4 h-4 cursor-pointer"
+                          />
+                          <div className="truncate">
+                            <span className="font-bold text-slate-800 block truncate">{member.name}</span>
+                            <span className="text-[10px] text-slate-400">
+                              {member.representativeName ? `نماینده: ${member.representativeName}` : ""}
+                            </span>
+                          </div>
+                        </div>
+
+                        {isIncluded && (
+                          <div className="flex items-center gap-2 shrink-0">
+                            <span className="text-[10px] text-slate-500">تعداد سهم:</span>
+                            <div className="flex items-center bg-slate-100 border border-slate-200 rounded-md overflow-hidden">
+                              <button
+                                type="button"
+                                disabled={shares <= 1}
+                                onClick={() => handleEditMemberShareChange(member.id, -1)}
+                                className="px-2 py-0.5 text-slate-500 hover:text-slate-800 disabled:opacity-30 disabled:cursor-not-allowed hover:bg-slate-200 font-bold"
+                              >
+                                -
+                              </button>
+                              <span className="px-2 py-0.5 font-bold text-[11px] text-indigo-900 bg-white min-w-[32px] text-center">
+                                {toPersianDigits(shares)}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => handleEditMemberShareChange(member.id, 1)}
+                                className="px-2 py-0.5 text-slate-500 hover:text-slate-800 hover:bg-slate-200 font-bold"
+                              >
+                                +
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
 
@@ -1007,7 +1168,7 @@ export default function CycleManager({
                   type="submit"
                   className="px-5 py-2 bg-teal-800 hover:bg-teal-900 text-white font-black rounded-lg shadow cursor-pointer"
                 >
-                  ذخیره تغییرات
+                  ذخیره تغییرات دوره و سهم‌ها
                 </button>
               </div>
             </form>

@@ -235,6 +235,8 @@ export default function App() {
   const handleAddCycle = (newCycle: FundCycle) => {
     const updatedCycles = [...cycles, newCycle];
     let updatedSettings = { ...settings };
+    let updatedMembers = [...members];
+
     if (newCycle.status === "active") {
       updatedCycles.forEach(c => {
         if (c.id !== newCycle.id) c.status = "archived";
@@ -242,14 +244,29 @@ export default function App() {
       updatedSettings.currentCycleNumber = newCycle.cycleNumber;
       updatedSettings.monthlyAmount = newCycle.monthlyAmount;
       updatedSettings.savingsAmount = newCycle.savingsAmount;
+
+      if (newCycle.memberShares) {
+        updatedMembers = members.map(m => {
+          const shares = newCycle.memberShares?.[m.id] || 1;
+          const isIncluded = newCycle.memberIds.includes(m.id);
+          const participated = m.participatedCycles || [3];
+          return {
+            ...m,
+            currentCycleShares: shares,
+            participatedCycles: isIncluded && !participated.includes(newCycle.cycleNumber) 
+              ? [...participated, newCycle.cycleNumber] 
+              : participated
+          };
+        });
+      }
     }
-    persistState(members, payments, lotteries, updatedSettings, updatedCycles);
+    persistState(updatedMembers, payments, lotteries, updatedSettings, updatedCycles);
   };
 
   const handleUpdateCycle = (cycleId: string, updatedFields: Partial<FundCycle>) => {
     const updatedCycles = cycles.map(c => c.id === cycleId ? { ...c, ...updatedFields } : c);
     const targetCycle = updatedCycles.find(c => c.id === cycleId);
-    let updatedSettings = settings;
+    let updatedSettings = { ...settings };
     if (targetCycle && targetCycle.status === "active") {
       updatedSettings = {
         ...settings,
@@ -257,7 +274,33 @@ export default function App() {
         savingsAmount: updatedFields.savingsAmount !== undefined ? updatedFields.savingsAmount : settings.savingsAmount,
       };
     }
-    persistState(members, payments, lotteries, updatedSettings, updatedCycles);
+
+    // Sync member shares and participation if memberShares or memberIds was updated
+    let updatedMembers = members;
+    if (updatedFields.memberShares || updatedFields.memberIds) {
+      updatedMembers = members.map(m => {
+        let shares = m.currentCycleShares || 1;
+        if (updatedFields.memberShares && updatedFields.memberShares[m.id] !== undefined) {
+          shares = updatedFields.memberShares[m.id];
+        }
+        let participated = m.participatedCycles || [3];
+        if (targetCycle && updatedFields.memberIds) {
+          const isIncluded = updatedFields.memberIds.includes(m.id);
+          if (isIncluded && !participated.includes(targetCycle.cycleNumber)) {
+            participated = [...participated, targetCycle.cycleNumber];
+          } else if (!isIncluded && participated.includes(targetCycle.cycleNumber)) {
+            participated = participated.filter(c => c !== targetCycle.cycleNumber);
+          }
+        }
+        return {
+          ...m,
+          currentCycleShares: shares,
+          participatedCycles: participated
+        };
+      });
+    }
+
+    persistState(updatedMembers, payments, lotteries, updatedSettings, updatedCycles);
   };
 
   const handleSetActiveCycle = (cycleNumber: number) => {
@@ -267,11 +310,20 @@ export default function App() {
     }));
     const activeC = updatedCycles.find(c => c.cycleNumber === cycleNumber);
     let updatedSettings = { ...settings, currentCycleNumber: cycleNumber };
+    let updatedMembers = members;
+
     if (activeC) {
       updatedSettings.monthlyAmount = activeC.monthlyAmount;
       updatedSettings.savingsAmount = activeC.savingsAmount;
+
+      if (activeC.memberShares) {
+        updatedMembers = members.map(m => ({
+          ...m,
+          currentCycleShares: activeC.memberShares?.[m.id] || 1
+        }));
+      }
     }
-    persistState(members, payments, lotteries, updatedSettings, updatedCycles);
+    persistState(updatedMembers, payments, lotteries, updatedSettings, updatedCycles);
   };
 
   // Add a new member
@@ -299,14 +351,29 @@ export default function App() {
       winMonth: null,
       avatarColor: colors[members.length % colors.length],
       isAppliedForLoan: false,
-      isAppliedForEmergency: false
+      isAppliedForEmergency: false,
+      participatedCycles: [settings.currentCycleNumber || 3],
+      currentCycleShares: 1
     };
 
     const updatedMembers = [...members, newMember];
-    persistState(updatedMembers, payments, lotteries, settings);
+
+    // Also include new member in the active cycle
+    const updatedCycles = cycles.map(c => {
+      if (c.status === "active") {
+        return {
+          ...c,
+          memberIds: [...(c.memberIds || []), newId],
+          memberShares: { ...(c.memberShares || {}), [newId]: 1 }
+        };
+      }
+      return c;
+    });
+
+    persistState(updatedMembers, payments, lotteries, settings, updatedCycles);
   };
 
-  // Update a member (e.g., name or password)
+  // Update a member (e.g., name, password, shares)
   const handleUpdateMember = (id: string, updatedFields: Partial<Member>) => {
     const updatedMembers = members.map(m => {
       if (m.id === id) {
@@ -326,14 +393,41 @@ export default function App() {
       });
     }
 
-    persistState(updatedMembers, payments, updatedLotteries, settings);
+    // Sync member shares to active cycle if currentCycleShares changed
+    let updatedCycles = cycles;
+    if (updatedFields.currentCycleShares !== undefined) {
+      updatedCycles = cycles.map(c => {
+        if (c.status === "active") {
+          return {
+            ...c,
+            memberShares: {
+              ...(c.memberShares || {}),
+              [id]: updatedFields.currentCycleShares!
+            }
+          };
+        }
+        return c;
+      });
+    }
+
+    persistState(updatedMembers, payments, updatedLotteries, settings, updatedCycles);
   };
 
   // Remove a member
   const handleRemoveMember = (id: string) => {
     const updatedMembers = members.filter(m => m.id !== id);
     const updatedPayments = payments.filter(p => p.memberId !== id);
-    persistState(updatedMembers, updatedPayments, lotteries, settings);
+    const updatedCycles = cycles.map(c => {
+      const filteredIds = (c.memberIds || []).filter(mId => mId !== id);
+      const newShares = { ...(c.memberShares || {}) };
+      delete newShares[id];
+      return {
+        ...c,
+        memberIds: filteredIds,
+        memberShares: newShares
+      };
+    });
+    persistState(updatedMembers, updatedPayments, lotteries, settings, updatedCycles);
   };
 
   // Record payment for a member
@@ -343,9 +437,12 @@ export default function App() {
     // Check if the member has already won
     const targetMember = members.find(m => m.id === memberId);
     const hasAlreadyWon = targetMember ? targetMember.hasWon : false;
+    const memberShares = targetMember?.currentCycleShares || 1;
     
-    // Total Amount paid including savings component
-    const totalPayment = settings.monthlyAmount + (settings.savingsAmount || 500000);
+    const memberMonthlyInstallment = settings.monthlyAmount * memberShares;
+    const memberMonthlySavings = (settings.savingsAmount || 500000) * memberShares;
+    const totalPayment = memberMonthlyInstallment + memberMonthlySavings;
+
     const scoreCalculation = calculatePaymentScore(day, totalPayment, settings.lotteryDayOfMonth);
     const actualScoreDelta = hasAlreadyWon ? 0 : scoreCalculation.score;
     
@@ -354,8 +451,8 @@ export default function App() {
       id: `p_${Date.now()}`,
       memberId,
       monthName: currentMonthName,
-      amount: settings.monthlyAmount,
-      savingsAmount: settings.savingsAmount || 500000,
+      amount: memberMonthlyInstallment,
+      savingsAmount: memberMonthlySavings,
       paymentDayShamsi: day,
       paymentDateShamsi: `${settings.currentYear}/${String(settings.currentMonthIndex + 1).padStart(2, '0')}/${String(day).padStart(2, '0')}`,
       scoreDelta: actualScoreDelta,

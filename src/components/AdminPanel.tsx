@@ -532,10 +532,10 @@ export default function AdminPanel({
                           )}
                         </td>
                         <td className="p-3.5 font-mono text-slate-500">
-                          {formatCurrency(payment?.amount || settings.monthlyAmount)}
+                          {formatCurrency(payment?.amount || (settings.monthlyAmount * (member.currentCycleShares || 1)))}
                         </td>
                         <td className="p-3.5 font-mono text-blue-800">
-                          {formatCurrency(payment?.savingsAmount || settings.savingsAmount || 500000)}
+                          {formatCurrency(payment?.savingsAmount || ((settings.savingsAmount || 500000) * (member.currentCycleShares || 1)))}
                         </td>
                         <td className="p-3.5">
                           {isPaid && payment ? (
@@ -861,6 +861,38 @@ export default function AdminPanel({
                                   {toPersianDigits(member.currentCycleShares)} سهم
                                 </span>
                               )}
+                            </div>
+
+                            {/* Direct Share Adjuster in Active Cycle */}
+                            <div className="flex items-center justify-between p-1.5 bg-slate-50 rounded-lg border border-slate-200 mt-2">
+                              <div className="text-[10px] text-slate-600">
+                                <span className="font-bold text-slate-800 block">سهم در دوره فعلی:</span>
+                                <span className="text-[9px] text-teal-700 font-bold">
+                                  ماهانه: {formatCurrency((member.currentCycleShares || 1) * (settings.monthlyAmount + (settings.savingsAmount || 500000)))}
+                                </span>
+                              </div>
+                              <div className="flex items-center bg-white border border-slate-200 rounded-md overflow-hidden shadow-2xs">
+                                <button
+                                  type="button"
+                                  title="کاهش سهم"
+                                  disabled={(member.currentCycleShares || 1) <= 1}
+                                  onClick={() => onUpdateMember(member.id, { currentCycleShares: Math.max(1, (member.currentCycleShares || 1) - 1) })}
+                                  className="px-1.5 py-0.5 text-slate-500 hover:text-slate-800 disabled:opacity-30 disabled:cursor-not-allowed hover:bg-slate-100 font-bold text-xs"
+                                >
+                                  -
+                                </button>
+                                <span className="px-1.5 py-0.5 font-bold text-[11px] text-indigo-900 bg-indigo-50/50 min-w-[28px] text-center">
+                                  {toPersianDigits(member.currentCycleShares || 1)}
+                                </span>
+                                <button
+                                  type="button"
+                                  title="افزایش سهم"
+                                  onClick={() => onUpdateMember(member.id, { currentCycleShares: (member.currentCycleShares || 1) + 1 })}
+                                  className="px-1.5 py-0.5 text-slate-500 hover:text-slate-800 hover:bg-slate-100 font-bold text-xs"
+                                >
+                                  +
+                                </button>
+                              </div>
                             </div>
                           </div>
 

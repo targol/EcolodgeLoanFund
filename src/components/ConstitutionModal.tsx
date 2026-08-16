@@ -93,7 +93,7 @@ export default function ConstitutionModal({ isOpen, onClose, fundName }: Constit
           <div>
             <h4 className="font-black text-slate-800 mb-3 text-sm flex items-center gap-2 border-b pb-2 border-slate-200">
               <CheckCircle className="w-4 h-4 text-teal-700" />
-              <span>قوانین عضویت و تعهدات اقامتگاه‌های بومگردی:</span>
+              <span>قوانین عضویت و تعهدات  بومگردی:</span>
             </h4>
             <div className="space-y-4">
               {rules.map((rule, idx) => (
