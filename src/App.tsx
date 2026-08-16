@@ -327,7 +327,7 @@ export default function App() {
   };
 
   // Add a new member
-  const handleAddMember = (name: string, password?: string) => {
+  const handleAddMember = (name: string, password?: string, shares: number = 1, isFoundingMember: boolean = false) => {
     const newId = `mem_${Date.now()}`;
     const colors = [
       "from-teal-500 to-emerald-600",
@@ -353,7 +353,8 @@ export default function App() {
       isAppliedForLoan: false,
       isAppliedForEmergency: false,
       participatedCycles: [settings.currentCycleNumber || 3],
-      currentCycleShares: 1
+      currentCycleShares: shares,
+      isFoundingMember: isFoundingMember
     };
 
     const updatedMembers = [...members, newMember];
@@ -364,7 +365,7 @@ export default function App() {
         return {
           ...c,
           memberIds: [...(c.memberIds || []), newId],
-          memberShares: { ...(c.memberShares || {}), [newId]: 1 }
+          memberShares: { ...(c.memberShares || {}), [newId]: shares }
         };
       }
       return c;
@@ -594,20 +595,18 @@ export default function App() {
   const handleUpdateSettings = (newSettings: Partial<FundSettings>) => {
     const updatedSettings = { ...settings, ...newSettings };
     
-    // Also propagate changes (like monthlyAmount, savingsAmount) to the currently active cycle
-    let updatedCycles = cycles;
-    if (newSettings.monthlyAmount !== undefined || newSettings.savingsAmount !== undefined) {
-      updatedCycles = cycles.map(c => {
-        if (c.status === "active") {
-          return {
-            ...c,
-            monthlyAmount: newSettings.monthlyAmount !== undefined ? newSettings.monthlyAmount : c.monthlyAmount,
-            savingsAmount: newSettings.savingsAmount !== undefined ? newSettings.savingsAmount : c.savingsAmount,
-          };
-        }
-        return c;
-      });
-    }
+    // Also propagate changes (like monthlyAmount, savingsAmount, goldInvestmentNote) to the currently active cycle
+    let updatedCycles = cycles.map(c => {
+      if (c.status === "active" || c.cycleNumber === (newSettings.currentCycleNumber || settings.currentCycleNumber)) {
+        return {
+          ...c,
+          monthlyAmount: newSettings.monthlyAmount !== undefined ? newSettings.monthlyAmount : c.monthlyAmount,
+          savingsAmount: newSettings.savingsAmount !== undefined ? newSettings.savingsAmount : c.savingsAmount,
+          goldInvestmentNote: newSettings.goldInvestmentNote !== undefined ? newSettings.goldInvestmentNote : c.goldInvestmentNote
+        };
+      }
+      return c;
+    });
 
     persistState(members, payments, lotteries, updatedSettings, updatedCycles);
   };

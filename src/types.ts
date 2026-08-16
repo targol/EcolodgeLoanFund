@@ -16,6 +16,7 @@ export interface Member {
   // Historical membership in fund cycles (e.g. [1, 2, 3])
   participatedCycles?: number[];
   currentCycleShares?: number; // number of shares in the active cycle (default: 1)
+  isFoundingMember?: boolean; // whether member is a founding board member (هیات موسس)
 }
 
 export type PaymentStatus = "paid" | "unpaid" | "late";

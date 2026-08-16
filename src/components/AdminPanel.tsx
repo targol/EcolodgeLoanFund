@@ -17,7 +17,7 @@ interface AdminPanelProps {
   lotteries: any[];
   settings: FundSettings;
   cycles?: FundCycle[];
-  onAddMember: (name: string, password?: string) => void;
+  onAddMember: (name: string, password?: string, shares?: number, isFoundingMember?: boolean) => void;
   onUpdateMember: (id: string, updatedFields: Partial<Member>) => void;
   onRemoveMember: (id: string) => void;
   onRecordPayment: (memberId: string, day: number) => void;
@@ -56,9 +56,17 @@ export default function AdminPanel({
 }: AdminPanelProps) {
   const [activeTab, setActiveTab] = useState<"payments" | "members" | "cycles" | "draw" | "settings">("payments");
   
+  // Active cycle computation
+  const activeCycle = cycles.find(c => c.status === "active") || cycles.find(c => c.cycleNumber === settings.currentCycleNumber) || cycles[cycles.length - 1];
+  const activeCycleMembers = activeCycle?.memberIds 
+    ? members.filter(m => activeCycle.memberIds.includes(m.id))
+    : members;
+
   // Form states - Add user
   const [newName, setNewName] = useState("");
   const [newPassword, setNewPassword] = useState("123");
+  const [newShares, setNewShares] = useState<number>(1);
+  const [newIsFoundingMember, setNewIsFoundingMember] = useState<boolean>(false);
   const [formError, setFormError] = useState("");
 
   // Filtering list of members by lottery status
@@ -358,9 +366,11 @@ export default function AdminPanel({
       setFormError("پر کردن نام عضو الزامی است.");
       return;
     }
-    onAddMember(newName.trim(), newPassword || "123");
+    onAddMember(newName.trim(), newPassword || "123", newShares, newIsFoundingMember);
     setNewName("");
     setNewPassword("123");
+    setNewShares(1);
+    setNewIsFoundingMember(false);
     setFormError("");
   };
 
@@ -424,7 +434,7 @@ export default function AdminPanel({
           >
             <Trophy className="w-4 h-4 text-slate-400" />
             <span>برگزاری قرعه‌کشی</span>
-            {members.filter(m => !m.hasWon).length > 0 && (
+            {activeCycleMembers.filter(m => !m.hasWon).length > 0 && (
               <span className="absolute top-1 -left-2 w-1.5 h-1.5 rounded-full bg-orange-500 animate-pulse" />
             )}
           </button>
@@ -458,7 +468,7 @@ export default function AdminPanel({
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-2">
               <div>
                 <h4 className="text-sm font-black text-slate-800">تاییدیه‌های مالی دورۀ {currentMonthName}</h4>
-                <p className="text-[11px] text-slate-450 mt-1">تعهدات پرداخت اعضا (اقساط ثابت: {formatCurrency(settings.monthlyAmount)} + پس‌انداز: {formatCurrency(settings.savingsAmount || 500000)}) در ماه جاری را تایید کنید.</p>
+                <p className="text-[11px] text-slate-450 mt-1">تعهدات پرداخت اعضای دوره جاری (اقساط پایه: {formatCurrency(activeCycle?.monthlyAmount || settings.monthlyAmount)} + پس‌انداز: {formatCurrency(activeCycle?.savingsAmount || settings.savingsAmount || 500000)}) در ماه جاری را تایید کنید.</p>
               </div>
               <div className="bg-teal-50 text-teal-800 text-[11px] px-3 py-1.5 rounded-lg border border-teal-100 flex items-center gap-1.5 self-start font-bold">
                 <Calendar className="w-4 h-4 text-teal-700" />
@@ -466,23 +476,37 @@ export default function AdminPanel({
               </div>
             </div>
 
+            {/* Active Cycle Scope Alert */}
+            <div className="p-3 bg-teal-50/70 border border-teal-200 rounded-xl flex flex-wrap items-center justify-between gap-2 text-xs text-teal-900 font-bold">
+              <div className="flex items-center gap-2">
+                <Layers className="w-4 h-4 text-teal-700" />
+                <span>اعضای فعال در {activeCycle?.title || 'دوره جاری'}: {toPersianDigits(activeCycleMembers.length)} عضو ({toPersianDigits(activeCycleMembers.reduce((sum, m) => sum + (activeCycle?.memberShares?.[m.id] || m.currentCycleShares || 1), 0))} سهم)</span>
+              </div>
+              <span className="text-[10px] text-teal-700 font-normal bg-white px-2 py-0.5 rounded border border-teal-150">
+                تنها اعضای این دوره در جدول وصول و ثبت اقساط نمایش داده می‌شوند
+              </span>
+            </div>
+
             <div className="overflow-x-auto border border-slate-200 rounded-xl">
               <table className="w-full text-right text-xs min-w-[800px] whitespace-nowrap">
                 <thead className="bg-slate-50 text-slate-500 font-bold border-b border-slate-200 col-span-1 border-t-0 border-r-0 border-l-0">
                   <tr>
-                    <th className="p-3.5">نام عضو</th>
+                    <th className="p-3.5">نام عضو و سهم</th>
                     <th className="p-3.5">وضعیت واریزی کل این ماه</th>
                     <th className="p-3.5">تاریخ ثبت فیش</th>
-                    <th className="p-3.5">مبلغ اقساط ثابت</th>
-                    <th className="p-3.5">مبلغ پس‌انداز ثابت</th>
+                    <th className="p-3.5">مبلغ اقساط وام</th>
+                    <th className="p-3.5">مبلغ پس‌انداز طلا</th>
                     <th className="p-3.5">امتیاز تاخیر/تعجیل</th>
                     <th className="p-3.5 text-center">عملیات ثبت</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-150 text-slate-700">
-                  {members.map((member) => {
+                  {activeCycleMembers.map((member) => {
                     const payment = payments.find(p => p.memberId === member.id && p.monthName === currentMonthName);
                     const isPaid = payment?.status === "paid";
+                    const memberShares = activeCycle?.memberShares?.[member.id] || member.currentCycleShares || 1;
+                    const calculatedInstallment = (activeCycle?.monthlyAmount || settings.monthlyAmount) * memberShares;
+                    const calculatedSavings = (activeCycle?.savingsAmount || settings.savingsAmount || 500000) * memberShares;
                     
                     return (
                       <tr key={member.id} className="hover:bg-slate-50/50 transition-colors">
@@ -492,7 +516,19 @@ export default function AdminPanel({
                               {member.name.charAt(0)}
                             </div>
                             <div>
-                              <span className="block text-xs font-black text-slate-805">{member.name}</span>
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-xs font-black text-slate-805">{member.name}</span>
+                                {member.isFoundingMember && (
+                                  <span className="bg-amber-50 text-amber-800 text-[9px] px-1.5 py-0.2 rounded font-black border border-amber-200">
+                                    ⭐️ هیئت موسس
+                                  </span>
+                                )}
+                                {memberShares > 1 && (
+                                  <span className="bg-indigo-50 text-indigo-700 text-[9px] px-1.5 py-0.2 rounded font-black border border-indigo-200">
+                                    {toPersianDigits(memberShares)} سهم
+                                  </span>
+                                )}
+                              </div>
                               <div className="flex flex-wrap gap-1 mt-0.5">
                                 {member.hasWon && (
                                   <span className="bg-slate-100 text-[9px] px-1.5 py-0.2 rounded border border-slate-200 mr-1 inline-block text-slate-500 font-bold">
@@ -531,11 +567,11 @@ export default function AdminPanel({
                             <span className="text-slate-400">-</span>
                           )}
                         </td>
-                        <td className="p-3.5 font-mono text-slate-500">
-                          {formatCurrency(payment?.amount || (settings.monthlyAmount * (member.currentCycleShares || 1)))}
+                        <td className="p-3.5 font-mono text-slate-600">
+                          {formatCurrency(payment?.amount || calculatedInstallment)}
                         </td>
                         <td className="p-3.5 font-mono text-blue-800">
-                          {formatCurrency(payment?.savingsAmount || ((settings.savingsAmount || 500000) * (member.currentCycleShares || 1)))}
+                          {formatCurrency(payment?.savingsAmount || calculatedSavings)}
                         </td>
                         <td className="p-3.5">
                           {isPaid && payment ? (
@@ -735,6 +771,51 @@ export default function AdminPanel({
                     />
                   </div>
 
+                  {/* Share selector for new member */}
+                  <div className="p-3 bg-white border border-slate-200 rounded-lg space-y-2">
+                    <div className="flex items-center justify-between">
+                      <label className="text-[11px] font-bold text-slate-700">تعداد سهم در صندوق:</label>
+                      <div className="flex items-center bg-slate-50 border border-slate-200 rounded-md overflow-hidden">
+                        <button
+                          type="button"
+                          disabled={newShares <= 1}
+                          onClick={() => setNewShares(Math.max(1, newShares - 1))}
+                          className="px-2.5 py-1 text-slate-600 hover:text-slate-900 disabled:opacity-30 disabled:cursor-not-allowed hover:bg-slate-200 font-black text-xs cursor-pointer"
+                        >
+                          -
+                        </button>
+                        <span className="px-3 py-1 font-black text-xs text-indigo-900 bg-indigo-50 min-w-[32px] text-center">
+                          {toPersianDigits(newShares)} سهم
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setNewShares(newShares + 1)}
+                          className="px-2.5 py-1 text-slate-600 hover:text-slate-900 hover:bg-slate-200 font-black text-xs cursor-pointer"
+                        >
+                          +
+                        </button>
+                      </div>
+                    </div>
+                    <div className="text-[10px] text-teal-800 font-bold flex justify-between pt-1 border-t border-slate-100">
+                      <span>مبلغ تعهد ماهانه:</span>
+                      <span>{formatCurrency(newShares * (settings.monthlyAmount + (settings.savingsAmount || 500000)))}</span>
+                    </div>
+                  </div>
+
+                  {/* Founding Member Checkbox */}
+                  <label className="flex items-center gap-2.5 p-2.5 bg-amber-50/60 border border-amber-200 rounded-lg cursor-pointer hover:bg-amber-50 transition-colors">
+                    <input
+                      type="checkbox"
+                      checked={newIsFoundingMember}
+                      onChange={(e) => setNewIsFoundingMember(e.target.checked)}
+                      className="w-4 h-4 rounded text-amber-600 focus:ring-amber-500 border-amber-300 cursor-pointer"
+                    />
+                    <div className="text-right">
+                      <span className="text-[11px] font-black text-amber-950 block">عضو هیئت موسس / هیأت امنا</span>
+                      <span className="text-[9px] text-amber-800">تعیین عضو به عنوان هیات موسس صندوق</span>
+                    </div>
+                  </label>
+
                   <div className="p-3 bg-teal-50/50 border border-teal-100 rounded-lg text-[10px] text-teal-905 leading-relaxed font-bold">
                     📌 <b>تاریخ شروع عضویت:</b> پرونده جدید به محض کلیک با تاریخ امروز سیستم به فهرست ملحق شده و فیش‌های دوره‌ای آن از ماه جاری آغاز خواهد شد. تلفن همراه لزومی ندارد.
                   </div>
@@ -812,7 +893,7 @@ export default function AdminPanel({
                                 </button>
                               </div>
                             ) : (
-                              <div className="flex items-center gap-1.5">
+                              <div className="flex items-center gap-1.5 flex-wrap">
                                 <span className="text-xs font-black text-slate-800 text-sm">{member.name}</span>
                                 <button
                                   type="button"
@@ -828,7 +909,26 @@ export default function AdminPanel({
                               </div>
                             )}
 
-                            <span className="text-[10px] text-slate-400 block mt-1">
+                            {/* Founding Member Role Switcher Button */}
+                            <div className="mt-1.5">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const nextState = !member.isFoundingMember;
+                                  onUpdateMember(member.id, { isFoundingMember: nextState });
+                                }}
+                                className={`text-[10px] px-2.5 py-1 rounded-md font-bold transition-all flex items-center gap-1.5 cursor-pointer border ${
+                                  member.isFoundingMember 
+                                    ? "bg-amber-100 text-amber-900 border-amber-300 font-black shadow-2xs" 
+                                    : "bg-slate-100 text-slate-600 border-slate-200 hover:bg-amber-50 hover:text-amber-850 hover:border-amber-200"
+                                }`}
+                                title="کلیک برای تغییر مستقیم سمت عضو"
+                              >
+                                <span>{member.isFoundingMember ? "⭐️ هیئت موسس (تغییر)" : "عضو عادی (تعیین به عنوان موسس)"}</span>
+                              </button>
+                            </div>
+
+                            <span className="text-[10px] text-slate-400 block mt-1.5">
                               عضویت از: <b>{member.joinDateShamsi}</b>
                               {member.representativeName && (
                                 <span className="mr-1 text-slate-500 font-bold">({member.representativeName})</span>
@@ -848,7 +948,7 @@ export default function AdminPanel({
                                 <span 
                                   key={cNum}
                                   className={`text-[9px] font-bold px-1.5 py-0.2 rounded border ${
-                                    cNum === 3 
+                                    cNum === (activeCycle?.cycleNumber || 3) 
                                       ? "bg-teal-50 text-teal-800 border-teal-200" 
                                       : "bg-slate-100 text-slate-600 border-slate-200"
                                   }`}
@@ -864,11 +964,11 @@ export default function AdminPanel({
                             </div>
 
                             {/* Direct Share Adjuster in Active Cycle */}
-                            <div className="flex items-center justify-between p-1.5 bg-slate-50 rounded-lg border border-slate-200 mt-2">
+                            <div className="flex items-center justify-between p-2 bg-slate-50 rounded-lg border border-slate-200 mt-2">
                               <div className="text-[10px] text-slate-600">
                                 <span className="font-bold text-slate-800 block">سهم در دوره فعلی:</span>
                                 <span className="text-[9px] text-teal-700 font-bold">
-                                  ماهانه: {formatCurrency((member.currentCycleShares || 1) * (settings.monthlyAmount + (settings.savingsAmount || 500000)))}
+                                  ماهانه: {formatCurrency((member.currentCycleShares || 1) * ((activeCycle?.monthlyAmount || settings.monthlyAmount) + (activeCycle?.savingsAmount || settings.savingsAmount || 500000)))}
                                 </span>
                               </div>
                               <div className="flex items-center bg-white border border-slate-200 rounded-md overflow-hidden shadow-2xs">
@@ -877,18 +977,18 @@ export default function AdminPanel({
                                   title="کاهش سهم"
                                   disabled={(member.currentCycleShares || 1) <= 1}
                                   onClick={() => onUpdateMember(member.id, { currentCycleShares: Math.max(1, (member.currentCycleShares || 1) - 1) })}
-                                  className="px-1.5 py-0.5 text-slate-500 hover:text-slate-800 disabled:opacity-30 disabled:cursor-not-allowed hover:bg-slate-100 font-bold text-xs"
+                                  className="px-2 py-0.5 text-slate-500 hover:text-slate-800 disabled:opacity-30 disabled:cursor-not-allowed hover:bg-slate-100 font-black text-xs cursor-pointer"
                                 >
                                   -
                                 </button>
-                                <span className="px-1.5 py-0.5 font-bold text-[11px] text-indigo-900 bg-indigo-50/50 min-w-[28px] text-center">
+                                <span className="px-2 py-0.5 font-black text-[11px] text-indigo-900 bg-indigo-50/50 min-w-[28px] text-center">
                                   {toPersianDigits(member.currentCycleShares || 1)}
                                 </span>
                                 <button
                                   type="button"
                                   title="افزایش سهم"
                                   onClick={() => onUpdateMember(member.id, { currentCycleShares: (member.currentCycleShares || 1) + 1 })}
-                                  className="px-1.5 py-0.5 text-slate-500 hover:text-slate-800 hover:bg-slate-100 font-bold text-xs"
+                                  className="px-2 py-0.5 text-slate-500 hover:text-slate-800 hover:bg-slate-100 font-black text-xs cursor-pointer"
                                 >
                                   +
                                 </button>
@@ -1004,7 +1104,7 @@ export default function AdminPanel({
         {/* Tab 3: DRAW LOTTERY */}
         {activeTab === "draw" && (
           <LotteryDraw 
-            members={members}
+            members={activeCycleMembers}
             settings={settings}
             onDrawSuccess={onDrawSuccess}
             isDrawingActive={isDrawingActive}
@@ -1121,22 +1221,28 @@ export default function AdminPanel({
 
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                     <div>
-                      <label className="block text-[11px] font-bold text-slate-500 mb-1">قسط ماهانه (تومان)</label>
+                      <label className="block text-[11px] font-bold text-slate-500 mb-1">قسط وام ماهانه (تومان)</label>
                       <input
                         type="number"
                         value={editPriceAmount}
                         onChange={(e) => setEditPriceAmount(e.target.value)}
                         className="w-full p-2.5 border border-slate-205 bg-white text-slate-800 font-mono font-bold rounded text-xs focus:outline-none focus:border-teal-705"
                       />
+                      <span className="text-[10px] text-teal-700 font-mono font-bold block mt-1">
+                        {formatCurrency(Number(editPriceAmount) || 0)}
+                      </span>
                     </div>
                     <div>
-                      <label className="block text-[11px] font-bold text-slate-500 mb-1">پس‌انداز ذخیره (تومان)</label>
+                      <label className="block text-[11px] font-bold text-slate-500 mb-1">پس‌انداز طلا ماهانه (تومان)</label>
                       <input
                         type="number"
                         value={editSavingsAmount}
                         onChange={(e) => setEditSavingsAmount(e.target.value)}
                         className="w-full p-2.5 border border-slate-205 bg-white text-slate-800 font-mono font-bold rounded text-xs focus:outline-none focus:border-teal-705"
                       />
+                      <span className="text-[10px] text-blue-700 font-mono font-bold block mt-1">
+                        {formatCurrency(Number(editSavingsAmount) || 0)}
+                      </span>
                     </div>
                     <div>
                       <label className="block text-[11px] font-bold text-slate-500 mb-1">روز موعد قرعه‌کشی</label>
@@ -1148,7 +1254,18 @@ export default function AdminPanel({
                         onChange={(e) => setEditLotteryDayOfMonth(Number(e.target.value))}
                         className="w-full p-2.5 border border-slate-205 bg-white text-slate-800 font-mono font-bold rounded text-xs focus:outline-none focus:border-teal-705"
                       />
+                      <span className="text-[10px] text-slate-500 block mt-1">
+                        روز {toPersianDigits(editLotteryDayOfMonth)} هر ماه
+                      </span>
                     </div>
+                  </div>
+
+                  {/* Summary of Monthly Payment */}
+                  <div className="p-3 bg-teal-50/80 border border-teal-200 rounded-lg flex items-center justify-between text-xs text-teal-950 font-bold">
+                    <span>مجموع پرداختی ماهانه هر سهم:</span>
+                    <span className="font-mono text-sm text-teal-900 bg-white px-2.5 py-1 rounded border border-teal-200 shadow-2xs">
+                      {formatCurrency((Number(editPriceAmount) || 0) + (Number(editSavingsAmount) || 0))}
+                    </span>
                   </div>
 
                   {/* Auto Draw setting */}
@@ -1225,6 +1342,18 @@ export default function AdminPanel({
                         {showAdminPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                       </button>
                     </div>
+                  </div>
+
+                  {/* Primary Save Button */}
+                  <div className="pt-3 border-t border-slate-200">
+                    <button
+                      type="button"
+                      onClick={handleSaveSettings}
+                      className="w-full py-3 px-4 bg-teal-850 hover:bg-teal-900 text-white font-black rounded-lg text-xs transition-all shadow cursor-pointer flex items-center justify-center gap-2"
+                    >
+                      <Save className="w-4 h-4" />
+                      <span>ذخیره تنظیمات عمومی و اعمال بر صندوق جاری</span>
+                    </button>
                   </div>
                 </div>
               </div>

@@ -15,17 +15,18 @@ export default function FundOverview({ members, payments, lotteries, settings }:
   
   // Calculations (excluding admin who is not in members)
   const totalMembers = members.length;
+  const totalShares = members.reduce((sum, m) => sum + (m.currentCycleShares || 1), 0);
   const wonCount = members.filter(m => m.hasWon).length;
   const pendingCount = totalMembers - wonCount;
   
   // 1. Core Installment component this month
   const currentMonthPayments = payments.filter(p => p.monthName === currentMonthName && p.status === "paid");
   const totalInstallmentMonth = currentMonthPayments.reduce((sum, p) => sum + p.amount, 0);
-  const expectedInstallmentMonth = totalMembers * settings.monthlyAmount;
+  const expectedInstallmentMonth = totalShares * settings.monthlyAmount;
   
   // 2. Savings component this month
   const totalSavingsMonth = currentMonthPayments.reduce((sum, p) => sum + (p.savingsAmount || 0), 0);
-  const expectedSavingsMonth = totalMembers * (settings.savingsAmount || 500000);
+  const expectedSavingsMonth = totalShares * (settings.savingsAmount || 500000);
 
   // 3. Accumulated Savings portfolio sum (retained for end of cycle / emergency loans)
   const allPaidPayments = payments.filter(p => p.status === "paid");
