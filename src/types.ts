@@ -64,6 +64,14 @@ export interface FundCycle {
   pastWinners?: { monthName: string; winnerName: string; loanType?: string }[];
 }
 
+export interface MessageTemplate {
+  id: string;
+  title: string;
+  content: string;
+  category: "reminder" | "overdue" | "lottery" | "receipt" | "announcement" | "custom";
+  isDefault?: boolean;
+}
+
 export interface FundSettings {
   fundName: string;
   monthlyAmount: number; // main qist amount, eg 5000000 Toman
@@ -82,6 +90,7 @@ export interface FundSettings {
   telegramChatId?: string;
   telegramMessageTemplate?: string;
   enableTelegramNotification?: boolean;
+  messageTemplates?: MessageTemplate[];
   // Custom Fund Logo & Favicon
   logoUrl?: string;
 }

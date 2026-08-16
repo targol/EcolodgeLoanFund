@@ -83,7 +83,7 @@ export default function FundOverview({ members, payments, lotteries, settings, c
             <div className="flex justify-between items-start">
               <div>
                 <p className="text-[11px] font-black text-slate-700 mb-1 flex items-center gap-1.5">
-                  <span>وصولی کل تعهدات این ماه</span>
+                  <span>وصولی تعهدات ماه جاری</span>
                   <span className="text-[9px] px-1.5 py-0.2 bg-teal-50 text-teal-800 rounded font-bold">
                     {PERS_MONTH_NAMES[settings.currentMonthIndex]}
                   </span>
@@ -102,12 +102,14 @@ export default function FundOverview({ members, payments, lotteries, settings, c
             
             <div className="mt-3 pt-3 border-t border-slate-100 space-y-1">
               <div className="flex items-center justify-between text-[11px] text-slate-600">
-                <span className="font-medium text-slate-500">کل تعهد مصوب ماه:</span>
-                <span className="font-black text-slate-800">{formatCurrency(expectedMonthlyCommitment)}</span>
+                <span className="font-medium text-slate-500">کل تعهد مصوب ماه ({toPersianDigits(totalActiveShares)} سهم):</span>
+                <span className="font-black text-slate-800 font-mono">{formatCurrency(expectedMonthlyCommitment)}</span>
               </div>
-              <div className="text-[9.5px] text-slate-450 flex justify-between font-mono">
-                <span>وام: {formatCurrency(expectedMonthlyLoanPool)}</span>
-                <span>پس‌انداز: {formatCurrency(expectedMonthlySavingsPool)}</span>
+              <div className="text-[10px] text-slate-500 flex justify-between">
+                <span>واریزی هر سهم: {formatCurrency(monthlyTotalPerShare)}</span>
+                <span className="font-bold text-teal-700">
+                  {expectedMonthlyCommitment > 0 ? toPersianDigits(Math.round((totalCollectedMonth / expectedMonthlyCommitment) * 100)) : "۰"}٪ وصول‌شده
+                </span>
               </div>
             </div>
 
@@ -144,13 +146,13 @@ export default function FundOverview({ members, payments, lotteries, settings, c
             
             <div className="mt-3 pt-3 border-t border-slate-100 space-y-1">
               <div className="flex items-center justify-between text-[11px] text-slate-600">
-                <span className="font-medium text-slate-500">سهم‌های فعال دوره:</span>
-                <span className="font-black text-indigo-900">
-                  {toPersianDigits(totalActiveShares)} سهم ({toPersianDigits(totalActiveMembers)} عضو)
+                <span className="font-medium text-slate-500">قسط وام هر سهم:</span>
+                <span className="font-black text-indigo-900 font-mono">
+                  {formatCurrency(monthlyLoanAmount)}
                 </span>
               </div>
-              <p className="text-[9.5px] text-slate-400 leading-tight">
-                قسط هر سهم: {formatCurrency(monthlyLoanAmount)}
+              <p className="text-[10px] text-slate-500 leading-tight">
+                محاسبه وام: {toPersianDigits(totalActiveShares)} سهم فعال × {formatCurrency(monthlyLoanAmount)}
               </p>
             </div>
           </motion.div>

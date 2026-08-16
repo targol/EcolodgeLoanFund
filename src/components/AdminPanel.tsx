@@ -1,12 +1,20 @@
-import React, { useState } from "react";
-import { Member, Payment, FundSettings, FundCycle, PERS_MONTH_NAMES } from "../types";
+import React, { useState, useEffect } from "react";
+import { Member, Payment, FundSettings, FundCycle, PERS_MONTH_NAMES, MessageTemplate } from "../types";
 import { toPersianDigits, formatCurrency, calculatePaymentScore, gregorianToJalali } from "../utils/jalali";
-import { sendTelegramMessage, formatTelegramMessage, DEFAULT_TELEGRAM_TEMPLATE } from "../utils/telegram";
+import { 
+  sendTelegramMessage, 
+  formatTelegramMessage, 
+  DEFAULT_TELEGRAM_TEMPLATE,
+  INITIAL_MESSAGE_TEMPLATES,
+  getTelegramDirectLink,
+  formatPhoneForTelegram
+} from "../utils/telegram";
 import { 
   Users, UserPlus, Coins, Calendar, Check, X, AlertCircle, Trash2, Edit2,
   Settings as SettingsIcon, Save, RefreshCw, Trophy, Info, Key, Shield, Eye, EyeOff, Filter,
   Send, Bot, MessageSquare, Loader2, CheckCircle2, Radio, Image as ImageIcon, Upload, Link as LinkIcon,
-  Layers, Download, Database, FileCode, Copy, CheckCircle, Code, HelpCircle
+  Layers, Download, Database, FileCode, Copy, CheckCircle, Code, HelpCircle,
+  Phone, ExternalLink, Plus, RotateCcw, Share2, CheckCheck, BellRing, FileText
 } from "lucide-react";
 import LotteryDraw from "./LotteryDraw";
 import CycleManager from "./CycleManager";
@@ -17,12 +25,13 @@ interface AdminPanelProps {
   lotteries: any[];
   settings: FundSettings;
   cycles?: FundCycle[];
-  onAddMember: (name: string, password?: string, shares?: number, isFoundingMember?: boolean) => void;
+  onAddMember: (name: string, password?: string, shares?: number, isFoundingMember?: boolean, phone?: string) => void;
   onUpdateMember: (id: string, updatedFields: Partial<Member>) => void;
   onRemoveMember: (id: string) => void;
   onRecordPayment: (memberId: string, day: number) => void;
   onUpdateSettings: (newSettings: Partial<FundSettings>) => void;
   onDrawSuccess: (winnerId: string, method: "random" | "weighted" | "manual" | "emergency_random" | "emergency_manual", loanType: "main" | "emergency", customAmount?: number, customWinnerDate?: string) => void;
+  onUndoLottery?: (lotteryId: string) => void;
   onResetFundCycle: () => void;
   onImportDatabase?: (data: { members: Member[]; payments: Payment[]; lotteries: any[]; settings: FundSettings; cycles?: FundCycle[] }) => void;
   isDrawingActive: boolean;
@@ -45,6 +54,7 @@ export default function AdminPanel({
   onRecordPayment,
   onUpdateSettings,
   onDrawSuccess,
+  onUndoLottery,
   onResetFundCycle,
   onImportDatabase,
   isDrawingActive,
@@ -54,7 +64,7 @@ export default function AdminPanel({
   onUpdateCycle,
   onSetActiveCycle
 }: AdminPanelProps) {
-  const [activeTab, setActiveTab] = useState<"payments" | "members" | "cycles" | "draw" | "settings">("payments");
+  const [activeTab, setActiveTab] = useState<"payments" | "members" | "cycles" | "draw" | "messaging" | "settings">("payments");
   
   // Active cycle computation
   const activeCycle = cycles.find(c => c.status === "active") || cycles.find(c => c.cycleNumber === settings.currentCycleNumber) || cycles[cycles.length - 1];
@@ -64,6 +74,7 @@ export default function AdminPanel({
 
   // Form states - Add user
   const [newName, setNewName] = useState("");
+  const [newPhone, setNewPhone] = useState("");
   const [newPassword, setNewPassword] = useState("123");
   const [newShares, setNewShares] = useState<number>(1);
   const [newIsFoundingMember, setNewIsFoundingMember] = useState<boolean>(false);
@@ -72,15 +83,47 @@ export default function AdminPanel({
   // Filtering list of members by lottery status
   const [lotteryFilter, setLotteryFilter] = useState<"all" | "not_won" | "previously_won">("all");
 
-  // Inline editing member name & password states
+  // Inline editing member name & password & phone states
   const [editingNameUserId, setEditingNameUserId] = useState<string | null>(null);
   const [tempUserName, setTempUserName] = useState("");
   const [editingPasswordUserId, setEditingPasswordUserId] = useState<string | null>(null);
   const [tempUserPassword, setTempUserPassword] = useState("");
+  const [editingPhoneUserId, setEditingPhoneUserId] = useState<string | null>(null);
+  const [tempUserPhone, setTempUserPhone] = useState("");
 
   // Payment Recording State inline
   const [recordingPaymentForMemberId, setRecordingPaymentForMemberId] = useState<string | null>(null);
   const [paymentDayInput, setPaymentDayInput] = useState<number>(1);
+
+  // Unified Telegram & Messaging Hub states
+  const [messagingSubTab, setMessagingSubTab] = useState<"sender" | "templates" | "settings">("sender");
+  const [messageTarget, setMessageTarget] = useState<"group" | "unpaid" | "single">("unpaid");
+  const [selectedSingleMemberId, setSelectedSingleMemberId] = useState<string>("");
+  const [templatesList, setTemplatesList] = useState<MessageTemplate[]>(
+    settings.messageTemplates && settings.messageTemplates.length > 0
+      ? settings.messageTemplates
+      : INITIAL_MESSAGE_TEMPLATES
+  );
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string>(
+    settings.messageTemplates?.[1]?.id || settings.messageTemplates?.[0]?.id || INITIAL_MESSAGE_TEMPLATES[1].id
+  );
+  const [customMessageBody, setCustomMessageBody] = useState<string>(
+    (settings.messageTemplates && (settings.messageTemplates[1]?.content || settings.messageTemplates[0]?.content)) || INITIAL_MESSAGE_TEMPLATES[1].content
+  );
+  const [messageSendStatus, setMessageSendStatus] = useState<{ type: "idle" | "loading" | "success" | "error"; msg?: string }>({ type: "idle" });
+  const [copiedTextFeedback, setCopiedTextFeedback] = useState<string | null>(null);
+
+  // Template Manager Editor States
+  const [editingTemplateId, setEditingTemplateId] = useState<string | null>(null);
+  const [templateFormTitle, setTemplateFormTitle] = useState("");
+  const [templateFormCategory, setTemplateFormCategory] = useState<MessageTemplate["category"]>("reminder");
+  const [templateFormBody, setTemplateFormBody] = useState("");
+  const [editTplTitle, setEditTplTitle] = useState("");
+  const [editTplContent, setEditTplContent] = useState("");
+  const [isAddingNewTemplate, setIsAddingNewTemplate] = useState(false);
+  const [newTplTitle, setNewTplTitle] = useState("");
+  const [newTplContent, setNewTplContent] = useState("");
+  const [newTplCategory, setNewTplCategory] = useState<MessageTemplate["category"]>("custom");
 
   // Settings edit state
   const [editPriceAmount, setEditPriceAmount] = useState<string>(settings.monthlyAmount.toString());
@@ -277,6 +320,9 @@ export default function AdminPanel({
     setEditTelegramChatId(settings.telegramChatId || "");
     setEditEnableTelegram(settings.enableTelegramNotification ?? true);
     setEditTelegramMessageTemplate(settings.telegramMessageTemplate || DEFAULT_TELEGRAM_TEMPLATE);
+    if (settings.messageTemplates && settings.messageTemplates.length > 0) {
+      setTemplatesList(settings.messageTemplates);
+    }
   }, [settings]);
 
   // Standalone Telegram Broadcast State
@@ -360,14 +406,63 @@ export default function AdminPanel({
 
   const netSavingsPool = Math.max(0, totalSavingsPaidAllTime - totalEmergencySpent);
 
+  // Active cycle unpaid members for current month
+  const unpaidActiveMembers = activeCycleMembers.filter(m => {
+    const payment = payments.find(p => p.memberId === m.id && p.monthName === currentMonthName && p.status === "paid");
+    return !payment;
+  });
+
+  const getDynamicMessageFor = (target: "group" | "unpaid" | "single", memberId?: string, rawTemplate?: string) => {
+    const tpl = rawTemplate !== undefined ? rawTemplate : customMessageBody;
+    
+    // Choose member for placeholder resolution
+    let targetMember: Member | undefined = undefined;
+    if (memberId) {
+      targetMember = members.find(m => m.id === memberId);
+    } else if (target === "single" && selectedSingleMemberId) {
+      targetMember = members.find(m => m.id === selectedSingleMemberId);
+    } else if (target === "unpaid" && unpaidActiveMembers.length > 0) {
+      targetMember = unpaidActiveMembers[0];
+    } else if (members.length > 0) {
+      targetMember = members[0];
+    }
+    
+    const shares = targetMember ? (activeCycle?.memberShares?.[targetMember.id] || targetMember.currentCycleShares || 1) : 1;
+    const instAmt = (activeCycle?.monthlyAmount || settings.monthlyAmount) * shares;
+    const savAmt = (activeCycle?.savingsAmount || settings.savingsAmount || 500000) * shares;
+    const totAmt = instAmt + savAmt;
+    
+    // Find last winner for {نام_برنده}
+    const lastLottery = lotteries && lotteries.length > 0 ? lotteries[lotteries.length - 1] : undefined;
+    const lastWinnerMember = lastLottery ? members.find(m => m.id === lastLottery.winnerMemberId) : undefined;
+    const winnerNameResolved = lastWinnerMember ? lastWinnerMember.name : (targetMember ? targetMember.name : "نام عضو برنده");
+
+    return formatTelegramMessage(tpl, {
+      winnerName: winnerNameResolved,
+      fundName: editFundName || settings.fundName,
+      monthName: currentMonthName,
+      amountStr: formatCurrency(activeCycleMembers.length * (activeCycle?.monthlyAmount || settings.monthlyAmount)),
+      dateStr: `${settings.currentYear}/${String(settings.currentMonthIndex + 1).padStart(2, '0')}/${toPersianDigits(editLotteryDayOfMonth || 1)}`,
+      loanTypeStr: "تسهیلات اصلی",
+      memberName: targetMember ? targetMember.name : (target === "unpaid" ? "عضو محترم" : "تمامی اعضا"),
+      memberPhone: targetMember?.phone || "",
+      installmentAmountStr: formatCurrency(instAmt),
+      savingsAmountStr: formatCurrency(savAmt),
+      totalAmountStr: formatCurrency(totAmt),
+      sharesCountStr: toPersianDigits(shares),
+      dueDateStr: `${toPersianDigits(editLotteryDayOfMonth || 5)}ام ${PERS_MONTH_NAMES[settings.currentMonthIndex]}`
+    });
+  };
+
   const handleCreateMember = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newName.trim()) {
       setFormError("پر کردن نام عضو الزامی است.");
       return;
     }
-    onAddMember(newName.trim(), newPassword || "123", newShares, newIsFoundingMember);
+    onAddMember(newName.trim(), newPassword || "123", newShares, newIsFoundingMember, newPhone.trim());
     setNewName("");
+    setNewPhone("");
     setNewPassword("123");
     setNewShares(1);
     setNewIsFoundingMember(false);
@@ -395,6 +490,11 @@ export default function AdminPanel({
           >
             <Coins className="w-4 h-4 text-slate-400" />
             <span>ثبت و تایید پرداخت‌ها</span>
+            {unpaidActiveMembers.length > 0 && (
+              <span className="text-[9px] bg-amber-100 text-amber-800 font-bold px-1.5 py-0.2 rounded-full">
+                {toPersianDigits(unpaidActiveMembers.length)} باقی‌مانده
+              </span>
+            )}
           </button>
           
           <button
@@ -440,6 +540,23 @@ export default function AdminPanel({
           </button>
 
           <button
+            onClick={() => setActiveTab("messaging")}
+            className={`pb-4 text-xs font-bold border-b-2 transition-all flex items-center gap-1.5 px-1 relative cursor-pointer ${
+              activeTab === "messaging"
+                ? "border-teal-800 text-teal-850 font-black"
+                : "border-transparent text-slate-500 hover:text-slate-850"
+            }`}
+          >
+            <MessageSquare className="w-4 h-4 text-slate-400" />
+            <span>پیام‌رسانی و تلگرام</span>
+            {unpaidActiveMembers.length > 0 && (
+              <span className="text-[9px] bg-rose-100 text-rose-800 font-bold px-1.5 py-0.2 rounded-full">
+                {toPersianDigits(unpaidActiveMembers.length)} فیش ثبت‌نشده
+              </span>
+            )}
+          </button>
+
+          <button
             onClick={() => setActiveTab("settings")}
             className={`pb-4 text-xs font-bold border-b-2 transition-all flex items-center gap-1.5 px-1 cursor-pointer ${
               activeTab === "settings"
@@ -476,6 +593,32 @@ export default function AdminPanel({
               </div>
             </div>
 
+            {/* Unpaid Alert & Reminder Banner */}
+            {unpaidActiveMembers.length > 0 && (
+              <div className="p-3.5 bg-rose-50/90 border border-rose-200 rounded-xl flex flex-wrap items-center justify-between gap-3 text-xs text-rose-900 font-bold">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-lg bg-rose-100 text-rose-700 flex items-center justify-center shrink-0">
+                    <BellRing className="w-4 h-4 text-rose-600" />
+                  </div>
+                  <div>
+                    <span className="font-black text-rose-950">تعداد {toPersianDigits(unpaidActiveMembers.length)} عضو هنوز فیش واریزی ماه {currentMonthName} را ثبت نکرده‌اند.</span>
+                    <span className="block text-[10px] text-rose-700 font-normal mt-0.5">می‌توانید با استفاده از سامانه پیام‌رسانی، به شماره همراه آن‌ها در تلگرام یادآوری بفرستید.</span>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveTab("messaging");
+                    setMessageTarget("unpaid");
+                  }}
+                  className="px-3.5 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-xs font-black flex items-center gap-1.5 transition-all shadow-sm cursor-pointer"
+                >
+                  <Send className="w-3.5 h-3.5" />
+                  <span>📢 ارسال پیام یادآوری تلگرام به همه ({toPersianDigits(unpaidActiveMembers.length)} نفر)</span>
+                </button>
+              </div>
+            )}
+
             {/* Active Cycle Scope Alert */}
             <div className="p-3 bg-teal-50/70 border border-teal-200 rounded-xl flex flex-wrap items-center justify-between gap-2 text-xs text-teal-900 font-bold">
               <div className="flex items-center gap-2">
@@ -493,6 +636,7 @@ export default function AdminPanel({
                   <tr>
                     <th className="p-3.5">نام عضو و سهم</th>
                     <th className="p-3.5">وضعیت واریزی کل این ماه</th>
+                    <th className="p-3.5">شماره تماس / تلگرام</th>
                     <th className="p-3.5">تاریخ ثبت فیش</th>
                     <th className="p-3.5">مبلغ اقساط وام</th>
                     <th className="p-3.5">مبلغ پس‌انداز طلا</th>
@@ -558,6 +702,27 @@ export default function AdminPanel({
                             <span className="text-rose-500 bg-rose-50 text-[10px] px-2.5 py-1 rounded border border-rose-100 font-bold inline-flex items-center gap-1">
                               <AlertCircle className="w-3.5 h-3.5" /> پرداخت نشده
                             </span>
+                          )}
+                        </td>
+                        <td className="p-3.5">
+                          {member.phone ? (
+                            <div className="flex items-center gap-1.5">
+                              <span className="font-mono text-[11px] text-slate-600">{toPersianDigits(member.phone)}</span>
+                              {!isPaid && (
+                                <a
+                                  href={getTelegramDirectLink(member.phone, getDynamicMessageFor("unpaid", member.id))}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="p-1 px-1.5 bg-sky-50 hover:bg-sky-100 text-sky-700 rounded border border-sky-200 text-[9px] font-bold inline-flex items-center gap-1 transition-all"
+                                  title="ارسال یادآوری در چت تلگرام عضو"
+                                >
+                                  <Send className="w-2.5 h-2.5 text-sky-600" />
+                                  <span>یادآوری</span>
+                                </a>
+                              )}
+                            </div>
+                          ) : (
+                            <span className="text-[10px] text-slate-400">بدون شماره</span>
                           )}
                         </td>
                         <td className="p-3.5 font-mono text-slate-600">
@@ -756,6 +921,18 @@ export default function AdminPanel({
                       value={newName}
                       onChange={(e) => setNewName(e.target.value)}
                       className="w-full p-2.5 border border-slate-200 rounded text-xs bg-white text-slate-800 focus:outline-none focus:border-teal-700 focus:ring-1 focus:ring-teal-700 transition-all font-bold"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-500 mb-1">شماره تماس / موبایل (جهت ارسال پیام تلگرام)</label>
+                    <input
+                      type="text"
+                      placeholder="مثال: 09123456789"
+                      value={newPhone}
+                      onChange={(e) => setNewPhone(e.target.value)}
+                      className="w-full p-2.5 border border-slate-200 rounded text-xs bg-white text-slate-800 font-bold focus:outline-none focus:border-teal-700 focus:ring-1 focus:ring-teal-700 transition-all font-mono"
+                      dir="ltr"
                     />
                   </div>
 
@@ -1009,7 +1186,81 @@ export default function AdminPanel({
                           </div>
                         </div>
 
-                        <div className="flex justify-between items-center pt-2.5 border-t border-slate-100 mt-1">
+                        {/* Phone Number Display & Inline Editor */}
+                        <div className="pt-2 border-t border-slate-100 mt-1">
+                          {editingPhoneUserId === member.id ? (
+                            <div className="flex items-center gap-1.5 w-full">
+                              <input 
+                                type="text" 
+                                autoFocus
+                                value={tempUserPhone}
+                                onChange={(e) => setTempUserPhone(e.target.value)}
+                                onKeyDown={(e) => {
+                                  if (e.key === "Enter") {
+                                    e.preventDefault();
+                                    onUpdateMember(member.id, { phone: tempUserPhone.trim() });
+                                    setEditingPhoneUserId(null);
+                                  } else if (e.key === "Escape") {
+                                    setEditingPhoneUserId(null);
+                                  }
+                                }}
+                                className="p-1 border border-teal-500 rounded text-xs font-mono font-bold w-36 bg-white focus:outline-none focus:ring-1 focus:ring-teal-600"
+                                placeholder="09123456789"
+                                dir="ltr"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  onUpdateMember(member.id, { phone: tempUserPhone.trim() });
+                                  setEditingPhoneUserId(null);
+                                }}
+                                className="p-1.5 bg-teal-750 text-white rounded hover:bg-teal-800 cursor-pointer"
+                                title="ذخیره شماره"
+                              >
+                                <Check className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setEditingPhoneUserId(null)}
+                                className="p-1.5 bg-slate-100 text-slate-500 rounded hover:bg-slate-200 cursor-pointer"
+                              >
+                                <X className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          ) : (
+                            <div className="flex items-center justify-between gap-1.5">
+                              <div className="flex items-center gap-1 text-[11px] text-slate-600">
+                                <Phone className="w-3.5 h-3.5 text-slate-400" />
+                                <span className="font-mono text-[11px]">{member.phone ? toPersianDigits(member.phone) : "بدون شماره موبایل"}</span>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setEditingPhoneUserId(member.id);
+                                    setTempUserPhone(member.phone || "");
+                                  }}
+                                  className="p-0.5 text-slate-400 hover:text-teal-700 cursor-pointer"
+                                  title="ویرایش شماره موبایل"
+                                >
+                                  <Edit2 className="w-3 h-3" />
+                                </button>
+                              </div>
+                              {member.phone && (
+                                <a
+                                  href={getTelegramDirectLink(member.phone, getDynamicMessageFor("single", member.id))}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="px-2 py-0.5 bg-sky-50 hover:bg-sky-100 text-sky-700 rounded text-[10px] font-bold border border-sky-200 flex items-center gap-1 transition-all"
+                                  title="ارسال پیام تلگرام به این عضو"
+                                >
+                                  <Send className="w-3 h-3 text-sky-600" />
+                                  <span>پیام تلگرام</span>
+                                </a>
+                              )}
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="flex justify-between items-center pt-2 border-t border-slate-100 mt-1">
                           {editingPasswordUserId === member.id ? (
                             <div className="flex items-center gap-1.5 w-full">
                               <input 
@@ -1106,7 +1357,9 @@ export default function AdminPanel({
           <LotteryDraw 
             members={activeCycleMembers}
             settings={settings}
+            lotteries={lotteries}
             onDrawSuccess={onDrawSuccess}
+            onUndoLottery={onUndoLottery}
             isDrawingActive={isDrawingActive}
             setIsDrawingActive={setIsDrawingActive}
             accumulatedSavingsPool={netSavingsPool}
@@ -1221,7 +1474,7 @@ export default function AdminPanel({
 
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                     <div>
-                      <label className="block text-[11px] font-bold text-slate-500 mb-1">قسط وام ماهانه (تومان)</label>
+                      <label className="block text-[11px] font-bold text-slate-600 mb-1">قسط وام ماهانه هر سهم (تومان)</label>
                       <input
                         type="number"
                         value={editPriceAmount}
@@ -1229,11 +1482,11 @@ export default function AdminPanel({
                         className="w-full p-2.5 border border-slate-205 bg-white text-slate-800 font-mono font-bold rounded text-xs focus:outline-none focus:border-teal-705"
                       />
                       <span className="text-[10px] text-teal-700 font-mono font-bold block mt-1">
-                        {formatCurrency(Number(editPriceAmount) || 0)}
+                        {formatCurrency(Number(editPriceAmount) || 0)} (هر سهم)
                       </span>
                     </div>
                     <div>
-                      <label className="block text-[11px] font-bold text-slate-500 mb-1">پس‌انداز طلا ماهانه (تومان)</label>
+                      <label className="block text-[11px] font-bold text-slate-600 mb-1">پس‌انداز طلا ماهانه هر سهم (تومان)</label>
                       <input
                         type="number"
                         value={editSavingsAmount}
@@ -1241,11 +1494,11 @@ export default function AdminPanel({
                         className="w-full p-2.5 border border-slate-205 bg-white text-slate-800 font-mono font-bold rounded text-xs focus:outline-none focus:border-teal-705"
                       />
                       <span className="text-[10px] text-blue-700 font-mono font-bold block mt-1">
-                        {formatCurrency(Number(editSavingsAmount) || 0)}
+                        {formatCurrency(Number(editSavingsAmount) || 0)} (هر سهم)
                       </span>
                     </div>
                     <div>
-                      <label className="block text-[11px] font-bold text-slate-500 mb-1">روز موعد قرعه‌کشی</label>
+                      <label className="block text-[11px] font-bold text-slate-600 mb-1">روز موعد قرعه‌کشی</label>
                       <input
                         type="number"
                         min="1"
@@ -1585,263 +1838,844 @@ export default function AdminPanel({
               </div>
             )}
 
-            {/* TELEGRAM INTEGRATION SECTION */}
-            <div className="bg-white p-6 rounded-xl border border-sky-200 shadow-sm space-y-5">
-              <div className="flex items-center justify-between pb-3 border-b border-sky-100">
-                <div className="flex items-center gap-2">
-                  <div className="p-2 bg-sky-50 text-sky-600 rounded-lg">
-                    <Send className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <h4 className="text-sm font-black text-slate-800">تنظیمات ربات و ارسال خودکار نتایج به گروه تلگرام</h4>
-                    <p className="text-[11px] text-slate-500">ارسال خودکار ویدیو و نتیجه قرعه‌کشی پس از برگزاری یا در اول ماه</p>
-                  </div>
+            {/* Direct Link to Unified Messaging Hub */}
+            <div className="bg-gradient-to-r from-sky-50 to-teal-50 p-6 rounded-xl border border-sky-200 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className="p-3 bg-sky-100 text-sky-700 rounded-xl">
+                  <Send className="w-6 h-6" />
                 </div>
-
-                <label className="relative inline-flex items-center cursor-pointer">
-                  <input 
-                    type="checkbox" 
-                    checked={editEnableTelegram} 
-                    onChange={(e) => setEditEnableTelegram(e.target.checked)}
-                    className="sr-only peer"
-                  />
-                  <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:right-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-sky-600"></div>
-                </label>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 font-sans">
                 <div>
-                  <label className="block text-[11px] font-bold text-slate-600 mb-1 flex items-center gap-1">
-                    <Bot className="w-3.5 h-3.5 text-sky-600" />
-                    <span>توکن اختصاصی ربات تلگرام (Bot Token)</span>
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="123456789:AAG..."
-                    value={editTelegramBotToken}
-                    onChange={(e) => setEditTelegramBotToken(e.target.value)}
-                    className="w-full p-2.5 border border-slate-250 bg-white text-slate-800 font-mono text-xs rounded focus:outline-none focus:border-sky-500"
-                    dir="ltr"
-                  />
-                  <span className="text-[10px] text-slate-400 mt-1 block">دریافت شده از ربات BotFather@ تلگرام</span>
-                </div>
-
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-600 mb-1 flex items-center gap-1">
-                    <MessageSquare className="w-3.5 h-3.5 text-sky-600" />
-                    <span>شناسه چت یا آیدی گروه (Chat ID / Username)</span>
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="-100123456789 یا @my_fund_channel"
-                    value={editTelegramChatId}
-                    onChange={(e) => setEditTelegramChatId(e.target.value)}
-                    className="w-full p-2.5 border border-slate-250 bg-white text-slate-800 font-mono text-xs rounded focus:outline-none focus:border-sky-500"
-                    dir="ltr"
-                  />
-                  <span className="text-[10px] text-slate-400 mt-1 block">آیدی عددی منفی یا یوزرنام کانال/گروه تلگرام</span>
+                  <h4 className="text-sm font-black text-slate-800">سامانه یکپارچه پیام‌رسانی و تلگرام</h4>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    بخش‌های ارسال پیام به گروه، یادآوری با شماره تلفن اعضا و مدیریت قالب‌های آماده در تب مجزا ادغام شدند.
+                  </p>
                 </div>
               </div>
-
-              {/* Editable Message Template */}
-              <div className="space-y-2 font-sans">
-                <label className="block text-[11px] font-bold text-slate-700">
-                  متن و الگوی پیام سفارشی جهت ارسال به گروه تلگرام:
-                </label>
-                <div className="flex flex-wrap gap-1.5 pb-1">
-                  <span className="text-[10px] font-bold text-slate-500">متغیرهای پویا (کلیک برای درج):</span>
-                  {[
-                    "{نام_برنده}",
-                    "{ماه}",
-                    "{نام_صندوق}",
-                    "{مبلغ_وام}",
-                    "{تاریخ_قرعه_کشی}",
-                    "{نوع_وام}"
-                  ].map(tag => (
-                    <button
-                      key={tag}
-                      type="button"
-                      onClick={() => setEditTelegramMessageTemplate(prev => prev + " " + tag)}
-                      className="px-2 py-0.5 bg-sky-50 hover:bg-sky-100 text-sky-700 text-[10px] font-mono font-bold rounded border border-sky-200 cursor-pointer"
-                    >
-                      {tag}
-                    </button>
-                  ))}
-                </div>
-                <textarea
-                  rows={6}
-                  value={editTelegramMessageTemplate}
-                  onChange={(e) => setEditTelegramMessageTemplate(e.target.value)}
-                  className="w-full p-3 border border-slate-250 bg-slate-50 text-slate-800 text-xs rounded-lg font-sans leading-relaxed focus:outline-none focus:border-sky-500 focus:bg-white"
-                  dir="rtl"
-                />
-              </div>
-
-              {/* Action Buttons & Status */}
-              <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-slate-100">
-                <div className="flex gap-2">
-                  <button
-                    type="button"
-                    onClick={handleSaveSettings}
-                    className="py-2.5 px-6 bg-teal-800 hover:bg-teal-900 text-white font-extrabold rounded-lg text-xs cursor-pointer shadow-sm transition-all flex items-center gap-1.5"
-                  >
-                    <Save className="w-4 h-4" />
-                    <span>ذخیره تمامی تنظیمات</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={handleTestTelegram}
-                    disabled={telegramTestStatus.type === "loading"}
-                    className="py-2.5 px-4 bg-sky-600 hover:bg-sky-700 text-white font-bold rounded-lg text-xs cursor-pointer shadow-sm transition-all flex items-center gap-1.5"
-                  >
-                    {telegramTestStatus.type === "loading" ? (
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                    ) : (
-                      <Send className="w-4 h-4" />
-                    )}
-                    <span>ارسال پیام آزمایشی به تلگرام</span>
-                  </button>
-                </div>
-
-                {telegramTestStatus.type !== "idle" && (
-                  <div className={`p-2.5 px-4 rounded-lg text-xs font-bold flex items-center gap-2 ${
-                    telegramTestStatus.type === "success" 
-                      ? "bg-emerald-50 text-emerald-800 border border-emerald-200" 
-                      : telegramTestStatus.type === "error"
-                      ? "bg-rose-50 text-rose-800 border border-rose-200"
-                      : "bg-sky-50 text-sky-800 border border-sky-200"
-                  }`}>
-                    {telegramTestStatus.type === "success" && <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />}
-                    {telegramTestStatus.type === "error" && <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />}
-                    <span>{telegramTestStatus.msg}</span>
-                  </div>
-                )}
-              </div>
-
-              {/* Instructions Guide Card */}
-              <div className="p-4 bg-amber-50/80 rounded-xl border border-amber-200/80 space-y-2 text-xs text-amber-900 font-sans">
-                <p className="font-bold text-amber-950 flex items-center gap-1.5">
-                  <Info className="w-4 h-4 text-amber-700" />
-                  <span>راهنمای اتصال سریع ربات تلگرام به گروه صندوق:</span>
-                </p>
-                <ol className="list-decimal list-inside space-y-1 text-[11px] text-amber-900 leading-relaxed pr-2">
-                  <li>در تلگرام وارد ربات <b>BotFather@</b> شوید و فرمان <code className="bg-amber-100 px-1 py-0.5 rounded text-amber-950 font-mono">/newbot</code> را ارسال کرده و نام ربات را ثبت کنید.</li>
-                  <li>کد توکن اختصاصی دریافتی (API Token) را کپی کرده و در فیلد بالا قرار دهید.</li>
-                  <li>ربات را به گروه یا کانال تلگرام صندوق اضافه کرده و آن را به عنوان <b>مدیر (Admin)</b> با دسترسی ارسال پیام تنظیم کنید.</li>
-                  <li>آیدی عددی منفی گروه (مثلاً <code className="bg-amber-100 px-1 py-0.5 rounded text-amber-950 font-mono">-100123456789</code>) یا یوزرنام کانال را در فیلد Chat ID وارد کرده و دکمه تست را بزنید.</li>
-                </ol>
-              </div>
+              <button
+                type="button"
+                onClick={() => setActiveTab("messaging")}
+                className="px-5 py-2.5 bg-sky-600 hover:bg-sky-700 text-white font-black rounded-xl text-xs flex items-center gap-2 transition-all shadow-sm shrink-0 cursor-pointer"
+              >
+                <MessageSquare className="w-4 h-4" />
+                <span>ورود به بخش پیام‌رسانی و تلگرام</span>
+              </button>
             </div>
+          </div>
+        )}
 
-            {/* STANDALONE TELEGRAM BROADCAST MODULE */}
-            <div className="bg-white p-6 rounded-xl border border-teal-200 shadow-sm space-y-4">
-              <div className="flex items-center justify-between pb-3 border-b border-teal-100">
-                <div className="flex items-center gap-2">
-                  <div className="p-2 bg-teal-50 text-teal-800 rounded-lg border border-teal-100">
-                    <MessageSquare className="w-5 h-5 text-teal-700" />
-                  </div>
-                  <div>
-                    <h4 className="text-sm font-black text-slate-800">ارسال پیام و اطلاع‌رسانی مجزا به گروه تلگرام</h4>
-                    <p className="text-[11px] text-slate-500">ارسال مستقیم هرگونه پیام سفارشی، اطلاعیه یا یادآوری مستقل به اعضا در گروه تلگرام</p>
-                  </div>
-                </div>
-                <span className="text-[10px] font-bold bg-teal-50 text-teal-800 border border-teal-150 px-2.5 py-1 rounded">
-                  ارسال مستقیم پیام ادمین
-                </span>
+        {/* Tab 5: UNIFIED MESSAGING & TELEGRAM HUB */}
+        {activeTab === "messaging" && (
+          <div className="space-y-6 animate-fadeIn" id="admin-messaging-hub">
+            {/* Messaging Hub Header & Sub-tabs */}
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 pb-2 border-b border-slate-200">
+              <div>
+                <h3 className="text-base font-black text-slate-800 flex items-center gap-2">
+                  <MessageSquare className="w-5 h-5 text-sky-600" />
+                  <span>سامانه یکپارچه پیام‌رسانی و تلگرام {settings.fundName}</span>
+                </h3>
+                <p className="text-xs text-slate-500 mt-1">
+                  ارسال هوشمند به گروه تلگرام صندوق، یادآوری به اعضا از طریق شماره تماس، و ویرایش یا تعریف قالب‌های آماده پیام
+                </p>
               </div>
 
-              {/* Quick Template Presets */}
-              <div className="space-y-1.5 font-sans">
-                <label className="text-[11px] font-bold text-slate-600 block">قالب‌های آماده پیام (جهت درج سریع):</label>
-                <div className="flex flex-wrap gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setStandaloneMessage(`📢 <b>اطلاعیه آغاز دوره و واریز اقساط {ماه}</b>\n\nبا سلام و احترام حضور اعضای گرامی <b>{نام_صندوق}</b>،\nبدین‌وسیله به اطلاع می‌رساند دوره واریز اقساط و پس‌انداز مربوط به <b>{ماه}</b> آغاز گردید.\n\n💰 <b>مبلغ قسط ثابت:</b> {مبلغ_وام} تومان\n📅 <b>مهلت پرداخت:</b> پنجم این ماه\n\nاز همیاری و خوش‌حسابی شما سپاسگزاریم! 🙏`)}
-                    className="px-2.5 py-1.5 bg-slate-50 hover:bg-teal-50 text-slate-700 hover:text-teal-900 border border-slate-200 hover:border-teal-200 rounded text-[11px] font-bold transition-all cursor-pointer flex items-center gap-1"
-                  >
-                    <span>📢 اطلاعیه واریز اقساط</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setStandaloneMessage(`⏰ <b>یادآوری فوری مهلت واریز اقساط</b>\n\nاعضای محترم <b>{نام_صندوق}</b>،\nبا توجه به نزدیک شدن به زمان برگزاری قرعه‌کشی <b>{ماه}</b>، خواهشمند است نسبت به تسویه قسط و ارسال فیش اقدام فرمایید.\n\nسپاس از انضباط مالی شما 🙏`)}
-                    className="px-2.5 py-1.5 bg-slate-50 hover:bg-amber-50 text-slate-700 hover:text-amber-900 border border-slate-200 hover:border-amber-200 rounded text-[11px] font-bold transition-all cursor-pointer flex items-center gap-1"
-                  >
-                    <span>⏰ یادآوری مهلت پرداخت</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setStandaloneMessage(`🎲 <b>اطلاعیه زمان برگزاری قرعه‌کشی</b>\n\nاعضای گرامی <b>{نام_صندوق}</b>،\nبه اطلاع می‌رساند شبیه‌سازی انیمیشنی قرعه‌کشی این دوره در تاریخ <b>{تاریخ_قرعه_کشی}</b> برگزار خواهد شد.\n\nبا آرزوی موفقیت برای تمامی اعضا! ✨`)}
-                    className="px-2.5 py-1.5 bg-slate-50 hover:bg-sky-50 text-slate-700 hover:text-sky-900 border border-slate-200 hover:border-sky-200 rounded text-[11px] font-bold transition-all cursor-pointer flex items-center gap-1"
-                  >
-                    <span>🎲 اطلاعیه زمان قرعه‌کشی</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setStandaloneMessage("")}
-                    className="px-2.5 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded text-[11px] font-bold transition-all cursor-pointer"
-                  >
-                    <span>پاکسازی متن</span>
-                  </button>
-                </div>
-              </div>
-
-              {/* Dynamic Tag Helpers */}
-              <div className="flex flex-wrap gap-1.5 items-center">
-                <span className="text-[10px] font-bold text-slate-400">درج متغیرها:</span>
-                {["{نام_صندوق}", "{ماه}", "{تاریخ_قرعه_کشی}"].map(tag => (
-                  <button
-                    key={tag}
-                    type="button"
-                    onClick={() => setStandaloneMessage(prev => prev + " " + tag)}
-                    className="px-2 py-0.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-[10px] font-mono font-bold rounded cursor-pointer"
-                  >
-                    {tag}
-                  </button>
-                ))}
-              </div>
-
-              {/* Text Input Area */}
-              <textarea
-                rows={5}
-                placeholder="متن پیام سفارشی یا اطلاع‌رسانی مجزا را اینجا بنویسید (پشتیبانی از کدهای HTML مانند <b>متن پررنگ</b>)..."
-                value={standaloneMessage}
-                onChange={(e) => setStandaloneMessage(e.target.value)}
-                className="w-full p-3.5 border border-slate-250 bg-white text-slate-800 text-xs rounded-xl font-sans leading-relaxed focus:outline-none focus:border-teal-600 focus:ring-1 focus:ring-teal-600"
-                dir="rtl"
-              />
-
-              {/* Submit Button & Status */}
-              <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
+              {/* Sub-tab switcher */}
+              <div className="bg-slate-100 p-1 rounded-xl flex gap-1 self-start md:self-auto text-xs font-bold">
                 <button
                   type="button"
-                  onClick={handleSendStandaloneTelegram}
-                  disabled={standaloneSendStatus.type === "loading"}
-                  className="py-2.5 px-6 bg-teal-800 hover:bg-teal-900 text-white font-black rounded-lg text-xs cursor-pointer shadow-sm transition-all flex items-center gap-2"
+                  onClick={() => setMessagingSubTab("sender")}
+                  className={`px-3.5 py-1.5 rounded-lg transition-all flex items-center gap-1.5 cursor-pointer ${
+                    messagingSubTab === "sender" 
+                      ? "bg-white text-sky-700 font-black shadow-xs" 
+                      : "text-slate-600 hover:text-slate-900"
+                  }`}
                 >
-                  {standaloneSendStatus.type === "loading" ? (
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                  ) : (
-                    <Send className="w-4 h-4" />
-                  )}
-                  <span>ارسال پیام مجزا به گروه تلگرام</span>
+                  <Send className="w-3.5 h-3.5" />
+                  <span>ارسال پیام هوشمند</span>
                 </button>
 
-                {standaloneSendStatus.type !== "idle" && (
-                  <div className={`p-2.5 px-4 rounded-lg text-xs font-bold flex items-center gap-2 ${
-                    standaloneSendStatus.type === "success" 
-                      ? "bg-emerald-50 text-emerald-800 border border-emerald-200" 
-                      : standaloneSendStatus.type === "error"
-                      ? "bg-rose-50 text-rose-800 border border-rose-200"
-                      : "bg-teal-50 text-teal-800 border border-teal-200"
-                  }`}>
-                    {standaloneSendStatus.type === "success" && <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />}
-                    {standaloneSendStatus.type === "error" && <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />}
-                    <span>{standaloneSendStatus.msg}</span>
-                  </div>
-                )}
+                <button
+                  type="button"
+                  onClick={() => setMessagingSubTab("templates")}
+                  className={`px-3.5 py-1.5 rounded-lg transition-all flex items-center gap-1.5 cursor-pointer ${
+                    messagingSubTab === "templates" 
+                      ? "bg-white text-sky-700 font-black shadow-xs" 
+                      : "text-slate-600 hover:text-slate-900"
+                  }`}
+                >
+                  <FileText className="w-3.5 h-3.5" />
+                  <span>قالب‌های آماده ({toPersianDigits(templatesList.length)})</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setMessagingSubTab("settings")}
+                  className={`px-3.5 py-1.5 rounded-lg transition-all flex items-center gap-1.5 cursor-pointer ${
+                    messagingSubTab === "settings" 
+                      ? "bg-white text-sky-700 font-black shadow-xs" 
+                      : "text-slate-600 hover:text-slate-900"
+                  }`}
+                >
+                  <Bot className="w-3.5 h-3.5" />
+                  <span>تنظیمات ربات</span>
+                  {editEnableTelegram && (
+                    <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+                  )}
+                </button>
               </div>
             </div>
+
+            {/* SUB-TAB 1: SMART MESSAGE SENDER */}
+            {messagingSubTab === "sender" && (
+              <div className="space-y-6">
+                {/* 1. Message Target Selector */}
+                <div className="space-y-2 font-sans">
+                  <label className="block text-xs font-black text-slate-700">۱. مخاطب پیام را انتخاب نمایید:</label>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    {/* Target Option 1: Group Broadcast */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setMessageTarget("group");
+                        const tpl = templatesList.find(t => t.id === "tpl_new_cycle_announcement") || templatesList.find(t => t.id === "tpl_lottery") || templatesList[0];
+                        if (tpl) {
+                          setSelectedTemplateId(tpl.id);
+                          setCustomMessageBody(tpl.content);
+                        }
+                      }}
+                      className={`p-4 rounded-xl border text-right transition-all cursor-pointer flex flex-col justify-between gap-2 ${
+                        messageTarget === "group"
+                          ? "bg-sky-50/80 border-sky-500 ring-2 ring-sky-500/20 shadow-xs"
+                          : "bg-white border-slate-200 hover:border-slate-300"
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="p-2 rounded-lg bg-sky-100 text-sky-700">
+                          <Users className="w-4 h-4" />
+                        </div>
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${messageTarget === "group" ? "bg-sky-600 text-white" : "bg-slate-100 text-slate-600"}`}>
+                          عمومی
+                        </span>
+                      </div>
+                      <div>
+                        <span className="font-black text-xs text-slate-800 block">ارسال به گروه تلگرام صندوق</span>
+                        <span className="text-[10px] text-slate-500 mt-0.5 block">اطلاعیه‌ها، آغاز ماه و نتایج قرعه‌کشی</span>
+                      </div>
+                    </button>
+
+                    {/* Target Option 2: Unpaid Members */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setMessageTarget("unpaid");
+                        const tpl = templatesList.find(t => t.id === "tpl_unpaid_overdue") || templatesList.find(t => t.id === "tpl_payment_reminder") || templatesList[0];
+                        if (tpl) {
+                          setSelectedTemplateId(tpl.id);
+                          setCustomMessageBody(tpl.content);
+                        }
+                      }}
+                      className={`p-4 rounded-xl border text-right transition-all cursor-pointer flex flex-col justify-between gap-2 relative ${
+                        messageTarget === "unpaid"
+                          ? "bg-rose-50/80 border-rose-500 ring-2 ring-rose-500/20 shadow-xs"
+                          : "bg-white border-slate-200 hover:border-slate-300"
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="p-2 rounded-lg bg-rose-100 text-rose-700">
+                          <BellRing className="w-4 h-4" />
+                        </div>
+                        <span className="text-[10px] font-black px-2 py-0.5 rounded bg-rose-600 text-white">
+                          {toPersianDigits(unpaidActiveMembers.length)} فیش ثبت‌نشده
+                        </span>
+                      </div>
+                      <div>
+                        <span className="font-black text-xs text-slate-800 block">یادآوری به افراد بدون فیش</span>
+                        <span className="text-[10px] text-slate-500 mt-0.5 block">ارسال پیام اختصاصی با شماره تماس هر عضو</span>
+                      </div>
+                    </button>
+
+                    {/* Target Option 3: Single Member */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setMessageTarget("single");
+                        if (!selectedSingleMemberId && members.length > 0) {
+                          setSelectedSingleMemberId(members[0].id);
+                        }
+                      }}
+                      className={`p-4 rounded-xl border text-right transition-all cursor-pointer flex flex-col justify-between gap-2 ${
+                        messageTarget === "single"
+                          ? "bg-teal-50/80 border-teal-600 ring-2 ring-teal-600/20 shadow-xs"
+                          : "bg-white border-slate-200 hover:border-slate-300"
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="p-2 rounded-lg bg-teal-100 text-teal-800">
+                          <Phone className="w-4 h-4" />
+                        </div>
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${messageTarget === "single" ? "bg-teal-700 text-white" : "bg-slate-100 text-slate-600"}`}>
+                          تک‌عضو
+                        </span>
+                      </div>
+                      <div>
+                        <span className="font-black text-xs text-slate-800 block">ارسال مستقیم به یک عضو</span>
+                        <span className="text-[10px] text-slate-500 mt-0.5 block">چت تلگرام شخصی با شماره همراه عضو</span>
+                      </div>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Specific Target Controls for Single Member */}
+                {messageTarget === "single" && (
+                  <div className="p-4 bg-teal-50/60 rounded-xl border border-teal-200 space-y-3 font-sans">
+                    <label className="block text-xs font-black text-teal-900">عضو مورد نظر را انتخاب فرمایید:</label>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <select
+                        value={selectedSingleMemberId}
+                        onChange={(e) => setSelectedSingleMemberId(e.target.value)}
+                        className="w-full p-2.5 bg-white border border-teal-300 text-slate-800 font-bold rounded-lg text-xs focus:outline-none focus:border-teal-700"
+                      >
+                        {members.map(m => (
+                          <option key={m.id} value={m.id}>
+                            {m.name} {m.phone ? `(${toPersianDigits(m.phone)})` : "(بدون شماره تلفن)"} - {toPersianDigits(m.currentCycleShares || 1)} سهم
+                          </option>
+                        ))}
+                      </select>
+
+                      {/* Selected Member Quick Card */}
+                      {(() => {
+                        const targetM = members.find(m => m.id === selectedSingleMemberId);
+                        if (!targetM) return null;
+                        return (
+                          <div className="bg-white p-2.5 px-3.5 rounded-lg border border-teal-200 flex items-center justify-between text-xs">
+                            <div className="flex items-center gap-2">
+                              <Phone className="w-3.5 h-3.5 text-teal-700" />
+                              <span className="font-mono text-slate-700">{targetM.phone ? toPersianDigits(targetM.phone) : "شماره‌ای ثبت نشده"}</span>
+                            </div>
+                            {targetM.phone && (
+                              <a
+                                href={getTelegramDirectLink(targetM.phone, getDynamicMessageFor("single", targetM.id))}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="px-2.5 py-1 bg-sky-600 hover:bg-sky-700 text-white rounded text-[10px] font-bold flex items-center gap-1 transition-all"
+                              >
+                                <Send className="w-3 h-3" />
+                                <span>باز کردن چت تلگرام</span>
+                              </a>
+                            )}
+                          </div>
+                        );
+                      })()}
+                    </div>
+                  </div>
+                )}
+
+                {/* Specific Target Controls for Unpaid Members */}
+                {messageTarget === "unpaid" && (
+                  <div className="p-4 bg-rose-50/70 rounded-xl border border-rose-200 space-y-3 font-sans">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <BellRing className="w-4 h-4 text-rose-700" />
+                        <span className="text-xs font-black text-rose-950">
+                          فهرست اعضای بدون فیش ماه {currentMonthName} ({toPersianDigits(unpaidActiveMembers.length)} عضو):
+                        </span>
+                      </div>
+                      <span className="text-[10px] text-rose-800 font-bold">
+                        می‌توانید روی دکمه ارسال هر عضو کلیک کرده تا متن یادآوری اختصاصی او در تلگرام باز شود.
+                      </span>
+                    </div>
+
+                    {unpaidActiveMembers.length === 0 ? (
+                      <div className="bg-white p-6 rounded-lg border border-rose-200 text-center text-xs font-bold text-emerald-700 flex items-center justify-center gap-2">
+                        <CheckCircle2 className="w-5 h-5" />
+                        <span>تمامی اعضای دوره جاری فیش واریزی ماه {currentMonthName} را ثبت کرده‌اند! 🎉</span>
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5 max-h-60 overflow-y-auto pr-1">
+                        {unpaidActiveMembers.map(m => {
+                          const mShares = activeCycle?.memberShares?.[m.id] || m.currentCycleShares || 1;
+                          const mTotal = mShares * ((activeCycle?.monthlyAmount || settings.monthlyAmount) + (activeCycle?.savingsAmount || settings.savingsAmount || 500000));
+                          const memberMsg = getDynamicMessageFor("unpaid", m.id);
+
+                          return (
+                            <div key={m.id} className="bg-white p-3 rounded-lg border border-rose-200 flex flex-col justify-between gap-2 shadow-2xs">
+                              <div>
+                                <div className="flex items-center justify-between">
+                                  <span className="text-xs font-black text-slate-800">{m.name}</span>
+                                  <span className="text-[9px] font-bold bg-indigo-50 text-indigo-700 px-1.5 py-0.2 rounded border border-indigo-100">
+                                    {toPersianDigits(mShares)} سهم
+                                  </span>
+                                </div>
+                                <div className="flex items-center justify-between text-[10px] text-slate-500 mt-1">
+                                  <span className="font-mono">{m.phone ? toPersianDigits(m.phone) : "بدون شماره"}</span>
+                                  <span className="font-bold text-rose-700 font-mono">{formatCurrency(mTotal)}</span>
+                                </div>
+                              </div>
+
+                              <div className="flex gap-1.5 pt-2 border-t border-slate-100">
+                                {m.phone ? (
+                                  <a
+                                    href={getTelegramDirectLink(m.phone, memberMsg)}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="flex-1 py-1.5 bg-sky-600 hover:bg-sky-700 text-white rounded text-[10px] font-bold flex items-center justify-center gap-1 transition-all"
+                                  >
+                                    <Send className="w-3 h-3" />
+                                    <span>ارسال در تلگرام</span>
+                                  </a>
+                                ) : (
+                                  <span className="flex-1 py-1.5 bg-slate-100 text-slate-400 rounded text-[9px] font-bold text-center">
+                                    فاقد شماره موبایل
+                                  </span>
+                                )}
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    navigator.clipboard.writeText(memberMsg);
+                                    alert(`متن پیام اختصاصی یادآوری برای ${m.name} در کلیپ‌بورد کپی شد.`);
+                                  }}
+                                  className="p-1.5 px-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded text-[10px] font-bold cursor-pointer"
+                                  title="کپی متن پیام اختصاصی"
+                                >
+                                  <Copy className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* 2. Template Selector & Editor */}
+                <div className="bg-white p-5 rounded-xl border border-slate-200 space-y-4 font-sans">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 pb-2 border-b border-slate-100">
+                    <label className="text-xs font-black text-slate-800 flex items-center gap-1.5">
+                      <FileText className="w-4 h-4 text-sky-600" />
+                      <span>۲. انتخاب قالب پیام آماده و ویرایش متن:</span>
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setMessagingSubTab("templates")}
+                      className="text-[11px] text-sky-700 hover:text-sky-800 font-bold hover:underline cursor-pointer"
+                    >
+                      مدیریت و تعریف قالب‌های جدید ←
+                    </button>
+                  </div>
+
+                  {/* Preset Template Chips */}
+                  <div className="flex flex-wrap gap-2">
+                    {templatesList.map(tpl => (
+                      <button
+                        key={tpl.id}
+                        type="button"
+                        onClick={() => {
+                          setSelectedTemplateId(tpl.id);
+                          setCustomMessageBody(tpl.content);
+                        }}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 border ${
+                          selectedTemplateId === tpl.id
+                            ? "bg-sky-600 text-white border-sky-600 shadow-xs"
+                            : "bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200"
+                        }`}
+                      >
+                        <span>{tpl.title}</span>
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Dynamic Tag Helper Buttons */}
+                  <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                    <span className="text-[10px] font-bold text-slate-400">درج متغیر هوشمند در متن:</span>
+                    {[
+                      "{نام_عضو}",
+                      "{شماره_تلفن}",
+                      "{ماه}",
+                      "{مبلغ_کل}",
+                      "{مبلغ_قسط}",
+                      "{مبلغ_پس_انداز}",
+                      "{مهلت_پرداخت}",
+                      "{نام_صندوق}",
+                      "{تعداد_سهم}",
+                      "{نام_برنده}",
+                      "{تاریخ_قرعه_کشی}"
+                    ].map(tag => (
+                      <button
+                        key={tag}
+                        type="button"
+                        onClick={() => setCustomMessageBody(prev => prev + " " + tag)}
+                        className="px-2 py-0.5 bg-slate-100 hover:bg-sky-50 hover:text-sky-700 text-slate-700 text-[10px] font-mono font-bold rounded border border-slate-200 cursor-pointer transition-colors"
+                      >
+                        {tag}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Message Body Textarea */}
+                  <div className="space-y-1">
+                    <textarea
+                      rows={6}
+                      placeholder="متن پیام را اینجا تایپ یا ویرایش فرمایید (پشتیبانی از کدهای HTML مانند <b>متن پررنگ</b>)..."
+                      value={customMessageBody}
+                      onChange={(e) => setCustomMessageBody(e.target.value)}
+                      className="w-full p-3.5 border border-slate-250 bg-slate-50/60 focus:bg-white text-slate-800 text-xs rounded-xl font-sans leading-relaxed focus:outline-none focus:border-sky-600 focus:ring-1 focus:ring-sky-600"
+                      dir="rtl"
+                    />
+                  </div>
+
+                  {/* Live Substituted Preview Card */}
+                  <div className="p-4 bg-slate-900 text-slate-100 rounded-xl space-y-2 text-xs">
+                    <div className="flex items-center justify-between text-[11px] text-slate-400 pb-2 border-b border-slate-800">
+                      <span className="font-bold flex items-center gap-1 text-sky-400">
+                        <Eye className="w-3.5 h-3.5" />
+                        <span>پیش‌نمایش زنده پیام ارسالی (با مقادیر جایگذاری‌شده):</span>
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const previewText = getDynamicMessageFor(messageTarget);
+                          navigator.clipboard.writeText(previewText);
+                          alert("متن پیش‌نمایش در کلیپ‌بورد کپی شد.");
+                        }}
+                        className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded text-[10px] font-bold flex items-center gap-1 cursor-pointer"
+                      >
+                        <Copy className="w-3 h-3" />
+                        <span>کپی پیش‌نمایش</span>
+                      </button>
+                    </div>
+                    <div 
+                      className="text-xs leading-relaxed text-slate-200 whitespace-pre-wrap font-sans p-1" 
+                      dir="rtl"
+                      dangerouslySetInnerHTML={{ __html: getDynamicMessageFor(messageTarget) }}
+                    />
+                  </div>
+
+                  {/* Action Buttons: Send to Group / Copy / Send to Member */}
+                  <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-slate-100">
+                    <div className="flex flex-wrap gap-2">
+                      {/* Send via Bot Button */}
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          if (!editTelegramBotToken.trim() || !editTelegramChatId.trim()) {
+                            alert("لطفاً توکن ربات و آیدی چت تلگرام را در تب «تنظیمات ربات» وارد نمایید.");
+                            setMessagingSubTab("settings");
+                            return;
+                          }
+                          setStandaloneSendStatus({ type: "loading", msg: "در حال ارسال پیام به گروه تلگرام..." });
+                          const finalMsg = getDynamicMessageFor(messageTarget);
+                          const result = await sendTelegramMessage(editTelegramBotToken, editTelegramChatId, finalMsg);
+                          if (result.success) {
+                            setStandaloneSendStatus({ type: "success", msg: "پیام با موفقیت به گروه تلگرام ارسال گردید!" });
+                          } else {
+                            setStandaloneSendStatus({ type: "error", msg: `خطا در ارسال: ${result.error || 'ناشناخته'}` });
+                          }
+                          setTimeout(() => setStandaloneSendStatus({ type: "idle" }), 7000);
+                        }}
+                        disabled={standaloneSendStatus.type === "loading"}
+                        className="py-2.5 px-6 bg-sky-600 hover:bg-sky-700 text-white font-black rounded-xl text-xs cursor-pointer shadow-sm transition-all flex items-center gap-2"
+                      >
+                        {standaloneSendStatus.type === "loading" ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <Send className="w-4 h-4" />
+                        )}
+                        <span>ارسال مستقیم به گروه تلگرام با ربات</span>
+                      </button>
+
+                      {/* Direct Telegram Link if Single member */}
+                      {messageTarget === "single" && (() => {
+                        const targetM = members.find(m => m.id === selectedSingleMemberId);
+                        if (!targetM?.phone) return null;
+                        const links = getTelegramDirectLink(targetM.phone, getDynamicMessageFor("single", targetM.id));
+                        return (
+                          <a
+                            href={links.directChatUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="py-2.5 px-4 bg-teal-700 hover:bg-teal-800 text-white font-bold rounded-xl text-xs flex items-center gap-1.5 shadow-sm transition-all"
+                          >
+                            <Phone className="w-4 h-4" />
+                            <span>باز کردن چت تلگرام {targetM.name}</span>
+                          </a>
+                        );
+                      })()}
+
+                      {/* Copy Text Button */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const msg = getDynamicMessageFor(messageTarget);
+                          navigator.clipboard.writeText(msg);
+                          alert("متن نهایی پیام با موفقیت در کلیپ‌بورد کپی شد.");
+                        }}
+                        className="py-2.5 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs flex items-center gap-1.5 cursor-pointer transition-all"
+                      >
+                        <Copy className="w-4 h-4 text-slate-500" />
+                        <span>کپی کردن متن پیام</span>
+                      </button>
+                    </div>
+
+                    {standaloneSendStatus.type !== "idle" && (
+                      <div className={`p-2.5 px-4 rounded-lg text-xs font-bold flex items-center gap-2 ${
+                        standaloneSendStatus.type === "success" 
+                          ? "bg-emerald-50 text-emerald-800 border border-emerald-200" 
+                          : standaloneSendStatus.type === "error"
+                          ? "bg-rose-50 text-rose-800 border border-rose-200"
+                          : "bg-sky-50 text-sky-800 border border-sky-200"
+                      }`}>
+                        {standaloneSendStatus.type === "success" && <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />}
+                        {standaloneSendStatus.type === "error" && <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />}
+                        <span>{standaloneSendStatus.msg}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* SUB-TAB 2: TEMPLATES MANAGEMENT */}
+            {messagingSubTab === "templates" && (
+              <div className="space-y-6">
+                {/* Header & Create New Template Trigger */}
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 bg-white p-4 rounded-xl border border-slate-200">
+                  <div>
+                    <h4 className="text-sm font-black text-slate-800">مدیریت و ویرایش قالب‌های پیام آماده</h4>
+                    <p className="text-xs text-slate-500 mt-0.5">شما می‌توانید متن‌های پیش‌فرض را ویرایش کرده یا قالب‌های پیام جدید تعریف نمایید.</p>
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditingTemplateId("new");
+                        setTemplateFormTitle("");
+                        setTemplateFormCategory("custom");
+                        setTemplateFormBody("");
+                      }}
+                      className="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white font-bold rounded-lg text-xs flex items-center gap-1.5 shadow-sm cursor-pointer transition-all"
+                    >
+                      <Plus className="w-4 h-4" />
+                      <span>+ تعریف قالب جدید</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (confirm("آیا مایلید تمام قالب‌ها به متن‌های استاندارد اولیه بازنشانی شوند؟")) {
+                          setTemplatesList(INITIAL_MESSAGE_TEMPLATES);
+                          onUpdateSettings({ messageTemplates: INITIAL_MESSAGE_TEMPLATES });
+                          alert("قالب‌های پیام به حالت پیش‌فرض بازنشانی گردیدند.");
+                        }
+                      }}
+                      className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold rounded-lg text-xs cursor-pointer transition-all"
+                      title="بازنشانی به قالب‌های پیش‌فرض"
+                    >
+                      <RotateCcw className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Edit / Create Template Modal / In-line Form */}
+                {editingTemplateId && (
+                  <div className="p-5 bg-sky-50/70 border-2 border-sky-300 rounded-xl space-y-4 font-sans animate-in fade-in duration-150">
+                    <div className="flex items-center justify-between pb-2 border-b border-sky-200">
+                      <h4 className="text-xs font-black text-sky-950 flex items-center gap-1.5">
+                        <Edit2 className="w-4 h-4 text-sky-700" />
+                        <span>{editingTemplateId === "new" ? "تعریف و ذخیره قالب پیام جدید" : "ویرایش متن قالب آماده"}</span>
+                      </h4>
+                      <button
+                        type="button"
+                        onClick={() => setEditingTemplateId(null)}
+                        className="p-1 rounded text-slate-400 hover:text-slate-600 hover:bg-sky-100"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-700 mb-1">عنوان قالب پیام:</label>
+                        <input
+                          type="text"
+                          placeholder="مثال: یادآوری تسویه حساب پایان سال"
+                          value={templateFormTitle}
+                          onChange={(e) => setTemplateFormTitle(e.target.value)}
+                          className="w-full p-2.5 bg-white border border-sky-250 text-slate-800 font-bold rounded-lg text-xs focus:outline-none focus:border-sky-600"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-700 mb-1">دسته‌بندی موضوعی:</label>
+                        <select
+                          value={templateFormCategory}
+                          onChange={(e) => setTemplateFormCategory(e.target.value as any)}
+                          className="w-full p-2.5 bg-white border border-sky-250 text-slate-800 font-bold rounded-lg text-xs focus:outline-none focus:border-sky-600"
+                        >
+                          <option value="reminder">⏰ یادآوری مهلت پرداخت</option>
+                          <option value="overdue">🚨 هشدار تاخیر و معوقه</option>
+                          <option value="announcement">📢 آغاز دوره و واریز ماهانه</option>
+                          <option value="lottery">🎉 تبریک برنده قرعه‌کشی</option>
+                          <option value="receipt">✅ تاییدیه ثبت فیش</option>
+                          <option value="custom">✨ پیام عمومی و سفارشی</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="text-[11px] font-bold text-slate-700">متن الگو و کدها:</label>
+                        <div className="flex gap-1">
+                          {["{نام_عضو}", "{ماه}", "{مبلغ_کل}", "{مهلت_پرداخت}", "{نام_صندوق}"].map(tag => (
+                            <button
+                              key={tag}
+                              type="button"
+                              onClick={() => setTemplateFormBody(prev => prev + " " + tag)}
+                              className="px-1.5 py-0.5 bg-white text-sky-700 rounded text-[9px] font-mono font-bold border border-sky-200 cursor-pointer"
+                            >
+                              {tag}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                      <textarea
+                        rows={6}
+                        placeholder="متن قالب را اینجا بنویسید..."
+                        value={templateFormBody}
+                        onChange={(e) => setTemplateFormBody(e.target.value)}
+                        className="w-full p-3 bg-white border border-sky-250 text-slate-800 text-xs rounded-lg font-sans leading-relaxed focus:outline-none focus:border-sky-600"
+                        dir="rtl"
+                      />
+                    </div>
+
+                    <div className="flex justify-end gap-2 pt-2 border-t border-sky-200">
+                      <button
+                        type="button"
+                        onClick={() => setEditingTemplateId(null)}
+                        className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold rounded-lg text-xs cursor-pointer"
+                      >
+                        انصراف
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (!templateFormTitle.trim() || !templateFormBody.trim()) {
+                            alert("عنوان و متن قالب نمی‌تواند خالی باشد.");
+                            return;
+                          }
+                          let updated: MessageTemplate[];
+                          if (editingTemplateId === "new") {
+                            const newTpl: MessageTemplate = {
+                              id: `tpl_custom_${Date.now()}`,
+                              title: templateFormTitle.trim(),
+                              category: templateFormCategory,
+                              content: templateFormBody.trim()
+                            };
+                            updated = [...templatesList, newTpl];
+                          } else {
+                            updated = templatesList.map(t => t.id === editingTemplateId ? {
+                              ...t,
+                              title: templateFormTitle.trim(),
+                              category: templateFormCategory,
+                              content: templateFormBody.trim()
+                            } : t);
+                          }
+                          setTemplatesList(updated);
+                          onUpdateSettings({ messageTemplates: updated });
+                          setEditingTemplateId(null);
+                          alert("قالب با موفقیت ذخیره گردید.");
+                        }}
+                        className="px-6 py-2 bg-sky-600 hover:bg-sky-700 text-white font-black rounded-lg text-xs shadow-sm cursor-pointer"
+                      >
+                        ذخیره قالب پیام
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Templates Grid List */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {templatesList.map(tpl => (
+                    <div key={tpl.id} className="bg-white p-5 rounded-xl border border-slate-200 shadow-2xs flex flex-col justify-between gap-3">
+                      <div>
+                        <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+                          <span className="font-black text-xs text-slate-800">{tpl.title}</span>
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-sky-50 text-sky-700 border border-sky-100">
+                            {tpl.category === "reminder" ? "⏰ یادآوری" : tpl.category === "overdue" ? "🚨 هشدار تاخیر" : tpl.category === "lottery" ? "🎉 قرعه‌کشی" : tpl.category === "receipt" ? "✅ تاییدیه" : "📢 اطلاع‌رسانی"}
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-slate-600 leading-relaxed mt-2 whitespace-pre-wrap font-sans max-h-36 overflow-y-auto line-clamp-4">
+                          {tpl.content}
+                        </p>
+                      </div>
+
+                      <div className="flex items-center justify-between pt-2.5 border-t border-slate-100">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedTemplateId(tpl.id);
+                            setCustomMessageBody(tpl.content);
+                            setMessagingSubTab("sender");
+                          }}
+                          className="text-[11px] font-bold text-sky-700 hover:text-sky-800 flex items-center gap-1 cursor-pointer"
+                        >
+                          <Send className="w-3 h-3" />
+                          <span>استفاده برای ارسال ←</span>
+                        </button>
+
+                        <div className="flex gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditingTemplateId(tpl.id);
+                              setTemplateFormTitle(tpl.title);
+                              setTemplateFormCategory(tpl.category);
+                              setTemplateFormBody(tpl.content);
+                            }}
+                            className="p-1.5 bg-slate-50 hover:bg-sky-50 text-slate-600 hover:text-sky-700 rounded border border-slate-200 cursor-pointer"
+                            title="ویرایش این قالب"
+                          >
+                            <Edit2 className="w-3.5 h-3.5" />
+                          </button>
+                          {templatesList.length > 1 && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (confirm(`آیا از حذف قالب «${tpl.title}» اطمینان دارید؟`)) {
+                                  const updated = templatesList.filter(t => t.id !== tpl.id);
+                                  setTemplatesList(updated);
+                                  onUpdateSettings({ messageTemplates: updated });
+                                }
+                              }}
+                              className="p-1.5 bg-slate-50 hover:bg-rose-50 text-slate-400 hover:text-rose-600 rounded border border-slate-200 cursor-pointer"
+                              title="حذف قالب"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* SUB-TAB 3: TELEGRAM BOT & GROUP CONFIG */}
+            {messagingSubTab === "settings" && (
+              <div className="space-y-6">
+                <div className="bg-white p-6 rounded-xl border border-sky-200 shadow-sm space-y-5">
+                  <div className="flex items-center justify-between pb-3 border-b border-sky-100">
+                    <div className="flex items-center gap-2">
+                      <div className="p-2 bg-sky-50 text-sky-600 rounded-lg">
+                        <Bot className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <h4 className="text-sm font-black text-slate-800">تنظیمات ربات و ارسال خودکار نتایج به گروه تلگرام</h4>
+                        <p className="text-[11px] text-slate-500">ارسال خودکار ویدیو و نتیجه قرعه‌کشی پس از برگزاری یا در اول ماه</p>
+                      </div>
+                    </div>
+
+                    <label className="relative inline-flex items-center cursor-pointer">
+                      <input 
+                        type="checkbox" 
+                        checked={editEnableTelegram} 
+                        onChange={(e) => setEditEnableTelegram(e.target.checked)}
+                        className="sr-only peer"
+                      />
+                      <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:right-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-sky-600"></div>
+                    </label>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 font-sans">
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-600 mb-1 flex items-center gap-1">
+                        <Bot className="w-3.5 h-3.5 text-sky-600" />
+                        <span>توکن اختصاصی ربات تلگرام (Bot Token)</span>
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="123456789:AAG..."
+                        value={editTelegramBotToken}
+                        onChange={(e) => setEditTelegramBotToken(e.target.value)}
+                        className="w-full p-2.5 border border-slate-250 bg-white text-slate-800 font-mono text-xs rounded focus:outline-none focus:border-sky-500"
+                        dir="ltr"
+                      />
+                      <span className="text-[10px] text-slate-400 mt-1 block">دریافت شده از ربات BotFather@ تلگرام</span>
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-600 mb-1 flex items-center gap-1">
+                        <MessageSquare className="w-3.5 h-3.5 text-sky-600" />
+                        <span>شناسه چت یا آیدی گروه (Chat ID / Username)</span>
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="-100123456789 یا @my_fund_channel"
+                        value={editTelegramChatId}
+                        onChange={(e) => setEditTelegramChatId(e.target.value)}
+                        className="w-full p-2.5 border border-slate-250 bg-white text-slate-800 font-mono text-xs rounded focus:outline-none focus:border-sky-500"
+                        dir="ltr"
+                      />
+                      <span className="text-[10px] text-slate-400 mt-1 block">آیدی عددی منفی یا یوزرنام کانال/گروه تلگرام</span>
+                    </div>
+                  </div>
+
+                  {/* Action Buttons & Status */}
+                  <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-slate-100">
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={handleSaveSettings}
+                        className="py-2.5 px-6 bg-teal-800 hover:bg-teal-900 text-white font-extrabold rounded-lg text-xs cursor-pointer shadow-sm transition-all flex items-center gap-1.5"
+                      >
+                        <Save className="w-4 h-4" />
+                        <span>ذخیره تنظیمات ربات</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={handleTestTelegram}
+                        disabled={telegramTestStatus.type === "loading"}
+                        className="py-2.5 px-4 bg-sky-600 hover:bg-sky-700 text-white font-bold rounded-lg text-xs cursor-pointer shadow-sm transition-all flex items-center gap-1.5"
+                      >
+                        {telegramTestStatus.type === "loading" ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <Send className="w-4 h-4" />
+                        )}
+                        <span>ارسال پیام آزمایشی به تلگرام</span>
+                      </button>
+                    </div>
+
+                    {telegramTestStatus.type !== "idle" && (
+                      <div className={`p-2.5 px-4 rounded-lg text-xs font-bold flex items-center gap-2 ${
+                        telegramTestStatus.type === "success" 
+                          ? "bg-emerald-50 text-emerald-800 border border-emerald-200" 
+                          : telegramTestStatus.type === "error"
+                          ? "bg-rose-50 text-rose-800 border border-rose-200"
+                          : "bg-sky-50 text-sky-800 border border-sky-200"
+                      }`}>
+                        {telegramTestStatus.type === "success" && <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />}
+                        {telegramTestStatus.type === "error" && <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />}
+                        <span>{telegramTestStatus.msg}</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Instructions Guide Card */}
+                  <div className="p-4 bg-amber-50/80 rounded-xl border border-amber-200/80 space-y-2 text-xs text-amber-900 font-sans">
+                    <p className="font-bold text-amber-950 flex items-center gap-1.5">
+                      <Info className="w-4 h-4 text-amber-700" />
+                      <span>راهنمای اتصال سریع ربات تلگرام به گروه صندوق:</span>
+                    </p>
+                    <ol className="list-decimal list-inside space-y-1 text-[11px] text-amber-900 leading-relaxed pr-2">
+                      <li>در تلگرام وارد ربات <b>BotFather@</b> شوید و فرمان <code className="bg-amber-100 px-1 py-0.5 rounded text-amber-950 font-mono">/newbot</code> را ارسال کرده و نام ربات را ثبت کنید.</li>
+                      <li>کد توکن اختصاصی دریافتی (API Token) را کپی کرده و در فیلد بالا قرار دهید.</li>
+                      <li>ربات را به گروه یا کانال تلگرام صندوق اضافه کرده و آن را به عنوان <b>مدیر (Admin)</b> با دسترسی ارسال پیام تنظیم کنید.</li>
+                      <li>آیدی عددی منفی گروه (مثلاً <code className="bg-amber-100 px-1 py-0.5 rounded text-amber-950 font-mono">-100123456789</code>) یا یوزرنام کانال را در فیلد Chat ID وارد کرده و دکمه تست را بزنید.</li>
+                    </ol>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         )}
 

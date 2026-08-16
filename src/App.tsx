@@ -370,7 +370,7 @@ export default function App() {
   };
 
   // Add a new member
-  const handleAddMember = (name: string, password?: string, shares: number = 1, isFoundingMember: boolean = false) => {
+  const handleAddMember = (name: string, password?: string, shares: number = 1, isFoundingMember: boolean = false, phone: string = "") => {
     const newId = `mem_${Date.now()}`;
     const colors = [
       "from-teal-500 to-emerald-600",
@@ -386,7 +386,7 @@ export default function App() {
     const newMember: Member = {
       id: newId,
       name,
-      phone: "", // No phone needed
+      phone: phone.trim(),
       password: password || "123",
       joinDateShamsi: autoJoinDate,
       score: 0,
@@ -634,6 +634,45 @@ export default function App() {
     }
   };
 
+  // Undo / Rollback a past lottery draw to allow repeating the draw
+  const handleUndoLottery = (lotteryId: string) => {
+    const targetLottery = lotteries.find(l => l.id === lotteryId);
+    if (!targetLottery) return;
+
+    // 1. Remove from lotteries
+    const updatedLotteries = lotteries.filter(l => l.id !== lotteryId);
+
+    // 2. Restore winner's state
+    const updatedMembers = members.map(m => {
+      if (m.id === targetLottery.winnerId) {
+        return {
+          ...m,
+          hasWon: false,
+          winMonth: null
+        };
+      }
+      return m;
+    });
+
+    // 3. If it was main loan and it was the latest drawn lottery, revert currentMonthIndex
+    let updatedSettings = { ...settings };
+    if (targetLottery.loanType === "main" || !targetLottery.loanType) {
+      let prevMonthIndex = settings.currentMonthIndex - 1;
+      let prevYear = settings.currentYear;
+      if (prevMonthIndex < 0) {
+        prevMonthIndex = 11;
+        prevYear -= 1;
+      }
+      updatedSettings = {
+        ...settings,
+        currentMonthIndex: prevMonthIndex,
+        currentYear: prevYear
+      };
+    }
+
+    persistState(updatedMembers, payments, updatedLotteries, updatedSettings);
+  };
+
   // Update Settings
   const handleUpdateSettings = (newSettings: Partial<FundSettings>) => {
     const updatedSettings = { ...settings, ...newSettings };
@@ -874,6 +913,7 @@ export default function App() {
                 onRecordPayment={handleRecordPayment}
                 onUpdateSettings={handleUpdateSettings}
                 onDrawSuccess={handleDrawSuccess}
+                onUndoLottery={handleUndoLottery}
                 onResetFundCycle={handleResetFundCycle}
                 onImportDatabase={handleImportDatabase}
                 isDrawingActive={isDrawingActive}
