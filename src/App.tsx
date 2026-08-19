@@ -763,7 +763,7 @@ export default function App() {
                 </button>
               </div>
               <p className="text-xs text-slate-500 mt-1 leading-relaxed">
-                قسط ماهیانه: <b className="text-teal-900 font-extrabold">{formatCurrency(settings.monthlyAmount)}</b> + پس‌انداز: <b className="text-blue-900 font-extrabold">{formatCurrency(settings.savingsAmount || 500000)}</b> • موعد قرعه‌کشی: {toPersianDigits(settings.lotteryDayOfMonth)}ام هر ماه شمسی
+                قسط ماهیانه: <b className="text-teal-900 font-extrabold">{formatCurrency(settings.monthlyAmount)}</b> + پس‌انداز: <b className="text-blue-900 font-extrabold">{formatCurrency(settings.savingsAmount || 500000)}</b> • موعد قرعه‌کشی: {toPersianDigits(settings.lotteryDayOfMonth || 1)}ام هر ماه شمسی
               </p>
             </div>
           </div>

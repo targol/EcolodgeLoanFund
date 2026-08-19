@@ -199,11 +199,11 @@ export default function FundOverview({ members, payments, lotteries, settings, c
           </div>
           <div>
             <h4 className="text-xs font-bold text-teal-900 mb-1 flex items-center gap-1.5">
-              <span>سیستم ارزیابی خوش‌حسابی اساسنامه صندوق</span>
-              <span className="bg-teal-700 text-[10px] text-white px-2 py-0.5 rounded">هوشمند</span>
+              <span>سیستم ارزیابی خوش‌حسابی اعضا</span>
+              <span className="bg-teal-700 text-[10px] text-white px-2 py-0.5 rounded">تصمیم اعضا در هر دوره</span>
             </h4>
             <p className="text-[11px] text-teal-850/90 leading-relaxed">
-              موعد انجام قرعه‌کشی تا ۳ام هر ماه و موعد نهایی واریز اقساط تا ۵ام هر ماه شمسی است. به ازای هر روز تعجیل در واریز، مثبت ۱ امتیاز و به ازای هر روز تاخیر، منفی ۱ امتیاز <b className="text-teal-900 font-extrabold">به ازای هر ۱۰۰ هزار تومان واریزی</b> تخصیص می‌یابد. واریز زودتر، شانس برنده شدن در قرعه‌کشی‌های سیستمی را افزایش می‌دهد.
+              در هر دوره، با توجه به تصمیم و توافق اعضای صندوق، میزان و نحوه اعمال خوش‌حسابی در فرآیند قرعه‌کشی تعیین می‌شود. موعد انجام قرعه‌کشی تا ۳ام هر ماه و موعد نهایی واریز اقساط تا ۵ام هر ماه شمسی است که تعجیل در پرداخت‌ها به عنوان امتیاز مثبت و خوش‌حسابی برای اعضا ثبت و محاسبه می‌گردد.
             </p>
           </div>
         </div>
