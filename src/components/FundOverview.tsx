@@ -17,8 +17,8 @@ export default function FundOverview({ members, payments, lotteries, settings, c
   // Active cycle determination
   const activeCycle = cycles?.find(c => c.status === "active") || (cycles && cycles[cycles.length - 1]);
   const activeCycleMembers = activeCycle?.memberIds 
-    ? members.filter(m => activeCycle.memberIds.includes(m.id)) 
-    : members;
+    ? members.filter(m => activeCycle.memberIds.includes(m.id) && m.isActive !== false) 
+    : members.filter(m => m.isActive !== false);
   
   // Active cycle calculations
   const totalActiveMembers = activeCycleMembers.length;

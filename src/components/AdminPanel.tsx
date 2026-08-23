@@ -75,8 +75,8 @@ export default function AdminPanel({
   // Active cycle computation
   const activeCycle = cycles.find(c => c.status === "active") || cycles.find(c => c.cycleNumber === settings.currentCycleNumber) || cycles[cycles.length - 1];
   const activeCycleMembers = activeCycle?.memberIds 
-    ? members.filter(m => activeCycle.memberIds.includes(m.id)) 
-    : members;
+    ? members.filter(m => activeCycle.memberIds.includes(m.id) && m.isActive !== false) 
+    : members.filter(m => m.isActive !== false);
 
   // Form states - Add user
   const [newName, setNewName] = useState("");
@@ -86,8 +86,8 @@ export default function AdminPanel({
   const [newIsFoundingMember, setNewIsFoundingMember] = useState<boolean>(false);
   const [formError, setFormError] = useState("");
 
-  // Filtering list of members by lottery status
-  const [lotteryFilter, setLotteryFilter] = useState<"all" | "not_won" | "previously_won">("all");
+  // Filtering list of members by lottery / activity status
+  const [lotteryFilter, setLotteryFilter] = useState<"all" | "active_cycle" | "inactive" | "not_won" | "previously_won">("all");
 
   // Inline editing member name & password & phone states
   const [editingNameUserId, setEditingNameUserId] = useState<string | null>(null);
@@ -479,8 +479,26 @@ export default function AdminPanel({
     setFormError("");
   };
 
+  const handleToggleMemberActive = (member: Member) => {
+    const nextActive = member.isActive === false ? true : false;
+    onUpdateMember(member.id, { isActive: nextActive });
+    if (activeCycle && onUpdateCycle) {
+      const currentIds = activeCycle.memberIds || [];
+      let updatedIds: string[];
+      if (nextActive) {
+        updatedIds = currentIds.includes(member.id) ? currentIds : [...currentIds, member.id];
+      } else {
+        updatedIds = currentIds.filter(id => id !== member.id);
+      }
+      onUpdateCycle(activeCycle.id, { memberIds: updatedIds });
+    }
+  };
+
   const filteredMembers = members.filter((member) => {
-    if (lotteryFilter === "not_won") return !member.hasWon;
+    const isMemberActiveInCycle = member.isActive !== false && (!activeCycle?.memberIds || activeCycle.memberIds.includes(member.id));
+    if (lotteryFilter === "active_cycle") return isMemberActiveInCycle;
+    if (lotteryFilter === "inactive") return !isMemberActiveInCycle;
+    if (lotteryFilter === "not_won") return isMemberActiveInCycle && !member.hasWon;
     if (lotteryFilter === "previously_won") return member.hasWon;
     return true;
   });
@@ -1118,32 +1136,48 @@ export default function AdminPanel({
             <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 mb-4 flex flex-col sm:flex-row justify-between items-center gap-3 font-sans">
               <div className="flex items-center gap-2">
                 <Filter className="w-4 h-4 text-teal-700 font-bold" />
-                <span className="text-xs font-bold text-slate-700">فیلتر و مدیریت پرونده اعضا بر اساس وضعیت قرعه‌کشی:</span>
+                <span className="text-xs font-bold text-slate-700">فیلتر و مدیریت پرونده اعضا و وضعیت فعالیت در دوره‌ها:</span>
               </div>
-              <div className="bg-white p-1 rounded-lg border border-slate-200 flex gap-1 text-[11px]">
+              <div className="bg-white p-1 rounded-lg border border-slate-200 flex flex-wrap gap-1 text-[11px]">
                 <button
                   onClick={() => setLotteryFilter("all")}
-                  className={`py-1 px-3 rounded font-bold transition-all cursor-pointer ${
-                    lotteryFilter === "all" ? "bg-teal-700 text-white font-extrabold shadow-sm" : "text-slate-505 hover:text-slate-800"
+                  className={`py-1 px-2.5 rounded font-bold transition-all cursor-pointer ${
+                    lotteryFilter === "all" ? "bg-teal-700 text-white font-extrabold shadow-sm" : "text-slate-600 hover:text-slate-850"
                   }`}
                 >
                   همه اعضا ({toPersianDigits(members.length)})
                 </button>
                 <button
-                  onClick={() => setLotteryFilter("not_won")}
-                  className={`py-1 px-3 rounded font-bold transition-all cursor-pointer ${
-                    lotteryFilter === "not_won" ? "bg-amber-500 text-white font-extrabold shadow-sm" : "text-slate-505 hover:text-slate-800"
+                  onClick={() => setLotteryFilter("active_cycle")}
+                  className={`py-1 px-2.5 rounded font-bold transition-all cursor-pointer ${
+                    lotteryFilter === "active_cycle" ? "bg-emerald-700 text-white font-extrabold shadow-sm" : "text-slate-600 hover:text-slate-850"
                   }`}
                 >
-                  در انتظار قرعه ({toPersianDigits(members.filter(m => !m.hasWon).length)})
+                  فعال در دوره جاری ({toPersianDigits(activeCycleMembers.length)})
+                </button>
+                <button
+                  onClick={() => setLotteryFilter("inactive")}
+                  className={`py-1 px-2.5 rounded font-bold transition-all cursor-pointer ${
+                    lotteryFilter === "inactive" ? "bg-slate-700 text-white font-extrabold shadow-sm" : "text-slate-600 hover:text-slate-850"
+                  }`}
+                >
+                  غیرفعال ({toPersianDigits(members.filter(m => m.isActive === false || (activeCycle?.memberIds && !activeCycle.memberIds.includes(m.id))).length)})
+                </button>
+                <button
+                  onClick={() => setLotteryFilter("not_won")}
+                  className={`py-1 px-2.5 rounded font-bold transition-all cursor-pointer ${
+                    lotteryFilter === "not_won" ? "bg-amber-500 text-white font-extrabold shadow-sm" : "text-slate-600 hover:text-slate-850"
+                  }`}
+                >
+                  در انتظار قرعه ({toPersianDigits(activeCycleMembers.filter(m => !m.hasWon).length)})
                 </button>
                 <button
                   onClick={() => setLotteryFilter("previously_won")}
-                  className={`py-1 px-3 rounded font-bold transition-all cursor-pointer ${
-                    lotteryFilter === "previously_won" ? "bg-teal-600 text-white font-extrabold shadow-sm" : "text-slate-505 hover:text-slate-800"
+                  className={`py-1 px-2.5 rounded font-bold transition-all cursor-pointer ${
+                    lotteryFilter === "previously_won" ? "bg-teal-600 text-white font-extrabold shadow-sm" : "text-slate-600 hover:text-slate-850"
                   }`}
                 >
-                  برندگان قبلی وام اصلی ({toPersianDigits(members.filter(m => m.hasWon).length)})
+                  برندگان قبلی ({toPersianDigits(members.filter(m => m.hasWon).length)})
                 </button>
               </div>
             </div>
@@ -1268,13 +1302,49 @@ export default function AdminPanel({
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-[460px] overflow-y-auto pr-1">
-                    {filteredMembers.map((member) => (
+                    {filteredMembers.map((member) => {
+                      const isMemberActive = member.isActive !== false && (!activeCycle?.memberIds || activeCycle.memberIds.includes(member.id));
+                      return (
                       <div 
                         key={member.id} 
                         className={`p-4 rounded-xl border bg-white transition-all shadow-sm flex flex-col justify-between gap-3 ${
-                          member.hasWon ? "border-teal-100 bg-teal-50/10" : "border-slate-205"
+                          !isMemberActive 
+                            ? "border-slate-300 bg-slate-50/70 opacity-90" 
+                            : member.hasWon 
+                              ? "border-teal-100 bg-teal-50/10" 
+                              : "border-slate-205"
                         }`}
                       >
+                        {/* Member Active Status & Cycle Toggle Toolbar */}
+                        <div className="flex items-center justify-between gap-2 pb-2.5 border-b border-slate-100">
+                          <div className="flex items-center gap-1.5">
+                            {isMemberActive ? (
+                              <span className="bg-emerald-50 text-emerald-800 text-[10px] px-2 py-0.5 rounded-full font-black border border-emerald-200 flex items-center gap-1">
+                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                                فعال در دوره {toPersianDigits(activeCycle?.cycleNumber || 3)}
+                              </span>
+                            ) : (
+                              <span className="bg-slate-100 text-slate-500 text-[10px] px-2 py-0.5 rounded-full font-bold border border-slate-200 flex items-center gap-1">
+                                <span className="w-1.5 h-1.5 rounded-full bg-slate-400"></span>
+                                غیرفعال / خارج از دوره جاری
+                              </span>
+                            )}
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={() => handleToggleMemberActive(member)}
+                            className={`text-[10px] px-2.5 py-0.5 rounded-md font-bold transition-all cursor-pointer border shadow-2xs ${
+                              isMemberActive
+                                ? "bg-white hover:bg-rose-50 text-slate-600 hover:text-rose-700 border-slate-200 hover:border-rose-200"
+                                : "bg-emerald-700 hover:bg-emerald-800 text-white border-emerald-700 font-black"
+                            }`}
+                            title={isMemberActive ? "غیرفعال کردن این عضو در دوره جاری" : "فعال کردن این عضو در دوره جاری"}
+                          >
+                            {isMemberActive ? "غیرفعال‌سازی" : "فعال‌سازی در دوره"}
+                          </button>
+                        </div>
+
                         <div className="flex justify-between items-start gap-2">
                           <div className="flex-1">
                             {editingNameUserId === member.id ? (
@@ -1582,7 +1652,8 @@ export default function AdminPanel({
                           </button>
                         </div>
                       </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </div>

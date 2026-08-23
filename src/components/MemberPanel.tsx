@@ -29,8 +29,8 @@ export default function MemberPanel({
   // Active cycle determination
   const activeCycle = cycles.find(c => c.status === "active") || cycles[cycles.length - 1];
   const activeCycleMembers = activeCycle?.memberIds 
-    ? members.filter(m => activeCycle.memberIds.includes(m.id)) 
-    : members;
+    ? members.filter(m => activeCycle.memberIds.includes(m.id) && m.isActive !== false) 
+    : members.filter(m => m.isActive !== false);
 
   // Session authentication state (stored locally in runtime state)
   const [sessionMemberId, setSessionMemberId] = useState<string | null>(null);

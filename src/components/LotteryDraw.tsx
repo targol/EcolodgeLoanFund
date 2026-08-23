@@ -103,16 +103,16 @@ export default function LotteryDraw({
   const [showHistoryModal, setShowHistoryModal] = useState<boolean>(false);
 
   // Candidates filtering logic
-  const unwonMembers = members.filter(m => !m.hasWon);
+  const unwonMembers = members.filter(m => !m.hasWon && m.isActive !== false);
 
   // Main loan applicants sorted chronologically by request submission time
   const mainApplicantsSorted = members
-    .filter(m => !m.hasWon && m.isAppliedForLoan)
+    .filter(m => !m.hasWon && m.isAppliedForLoan && m.isActive !== false)
     .sort((a, b) => (a.loanRequestTime || 0) - (b.loanRequestTime || 0));
 
   // Emergency loan applicants sorted chronologically by request submission time
   const emergencyApplicantsSorted = members
-    .filter(m => m.isAppliedForEmergency)
+    .filter(m => m.isAppliedForEmergency && m.isActive !== false)
     .sort((a, b) => (a.emergencyLoanRequestTime || 0) - (b.emergencyLoanRequestTime || 0));
 
   // Determine eligible candidates before exclusion
@@ -125,7 +125,9 @@ export default function LotteryDraw({
     }
   } else {
     // Emergency loan
-    eligibleCandidates = emergencyApplicantsSorted.length > 0 ? emergencyApplicantsSorted : members;
+    eligibleCandidates = emergencyApplicantsSorted.length > 0 
+      ? emergencyApplicantsSorted 
+      : members.filter(m => m.isActive !== false);
   }
 
   // Active candidates (filtering out excluded members)
