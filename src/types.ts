@@ -19,7 +19,7 @@ export interface Member {
   isFoundingMember?: boolean; // whether member is a founding board member (هیات موسس)
 }
 
-export type PaymentStatus = "paid" | "unpaid" | "late";
+export type PaymentStatus = "paid" | "unpaid" | "late" | "pending_approval";
 
 export interface Payment {
   id: string;
@@ -31,6 +31,10 @@ export interface Payment {
   paymentDateShamsi: string; // full shamsi date (e.g., "۱۴۰۳/۰۳/۰۲")
   scoreDelta: number; // positive or negative score earned
   status: PaymentStatus;
+  receiptNote?: string;
+  submittedByMember?: boolean; // true if submitted by member waiting for admin review
+  isApprovedByAdmin?: boolean; // true if approved by admin
+  approvedAtShamsi?: string; // date of approval
 }
 
 export interface LotteryResult {

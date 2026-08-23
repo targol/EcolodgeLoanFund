@@ -474,8 +474,12 @@ export default function App() {
     persistState(updatedMembers, updatedPayments, lotteries, settings, updatedCycles);
   };
 
-  // Record payment for a member
-  const handleRecordPayment = (memberId: string, day: number) => {
+  // Record payment for a member (from Member or Admin)
+  const handleRecordPayment = (
+    memberId: string, 
+    day: number, 
+    options?: { asPending?: boolean; receiptNote?: string }
+  ) => {
     const currentMonthName = `${PERS_MONTH_NAMES[settings.currentMonthIndex]} ${settings.currentYear}`;
     
     // Check if the member has already won
@@ -489,6 +493,7 @@ export default function App() {
 
     const scoreCalculation = calculatePaymentScore(day, totalPayment, settings.lotteryDayOfMonth);
     const actualScoreDelta = hasAlreadyWon ? 0 : scoreCalculation.score;
+    const isPending = !!options?.asPending;
     
     // 1. Build payment object
     const newPayment: Payment = {
@@ -500,22 +505,122 @@ export default function App() {
       paymentDayShamsi: day,
       paymentDateShamsi: `${settings.currentYear}/${String(settings.currentMonthIndex + 1).padStart(2, '0')}/${String(day).padStart(2, '0')}`,
       scoreDelta: actualScoreDelta,
-      status: "paid"
+      status: isPending ? "pending_approval" : "paid",
+      submittedByMember: isPending,
+      isApprovedByAdmin: !isPending,
+      receiptNote: options?.receiptNote,
+      approvedAtShamsi: isPending ? undefined : `${settings.currentYear}/${String(settings.currentMonthIndex + 1).padStart(2, '0')}/${String(day).padStart(2, '0')}`
     };
 
     // Filter out duplicate records
     const filteredPayments = payments.filter(p => !(p.memberId === memberId && p.monthName === currentMonthName));
     const updatedPayments = [...filteredPayments, newPayment];
 
-    // 2. Add score delta to the member
+    // 2. Add score delta to the member (only if approved immediately)
+    let updatedMembers = members;
+    if (!isPending && actualScoreDelta !== 0) {
+      updatedMembers = members.map(m => {
+        if (m.id === memberId) {
+          return { ...m, score: m.score + actualScoreDelta };
+        }
+        return m;
+      });
+    }
+
+    persistState(updatedMembers, updatedPayments, lotteries, settings, cycles);
+  };
+
+  // Admin approves a pending receipt (optionally with modified payment date)
+  const handleApprovePayment = (paymentId: string, finalDay?: number) => {
+    const targetPayment = payments.find(p => p.id === paymentId);
+    if (!targetPayment) return;
+
+    const targetMember = members.find(m => m.id === targetPayment.memberId);
+    const hasAlreadyWon = targetMember ? targetMember.hasWon : false;
+    const memberShares = targetMember?.currentCycleShares || 1;
+    const totalPayment = targetPayment.amount + targetPayment.savingsAmount;
+
+    const effectiveDay = finalDay !== undefined ? finalDay : targetPayment.paymentDayShamsi;
+    const scoreCalculation = calculatePaymentScore(effectiveDay, totalPayment, settings.lotteryDayOfMonth);
+    const finalScoreDelta = hasAlreadyWon ? 0 : scoreCalculation.score;
+
+    const updatedPayment: Payment = {
+      ...targetPayment,
+      paymentDayShamsi: effectiveDay,
+      paymentDateShamsi: `${settings.currentYear}/${String(settings.currentMonthIndex + 1).padStart(2, '0')}/${String(effectiveDay).padStart(2, '0')}`,
+      scoreDelta: finalScoreDelta,
+      status: "paid",
+      isApprovedByAdmin: true,
+      approvedAtShamsi: `${settings.currentYear}/${String(settings.currentMonthIndex + 1).padStart(2, '0')}/${String(effectiveDay).padStart(2, '0')}`
+    };
+
+    const updatedPayments = payments.map(p => p.id === paymentId ? updatedPayment : p);
+
+    // Apply score delta to member
     const updatedMembers = members.map(m => {
-      if (m.id === memberId) {
-        return { ...m, score: m.score + actualScoreDelta };
+      if (m.id === targetPayment.memberId) {
+        return { ...m, score: m.score + finalScoreDelta };
       }
       return m;
     });
 
-    persistState(updatedMembers, updatedPayments, lotteries, settings);
+    persistState(updatedMembers, updatedPayments, lotteries, settings, cycles);
+  };
+
+  // Admin modifies the payment date of an existing payment and updates score
+  const handleUpdatePaymentDate = (paymentId: string, newDay: number) => {
+    const targetPayment = payments.find(p => p.id === paymentId);
+    if (!targetPayment) return;
+
+    const targetMember = members.find(m => m.id === targetPayment.memberId);
+    const hasAlreadyWon = targetMember ? targetMember.hasWon : false;
+    const totalPayment = targetPayment.amount + targetPayment.savingsAmount;
+
+    const scoreCalculation = calculatePaymentScore(newDay, totalPayment, settings.lotteryDayOfMonth);
+    const newScoreDelta = hasAlreadyWon ? 0 : scoreCalculation.score;
+    const oldScoreDelta = targetPayment.status === "paid" ? targetPayment.scoreDelta : 0;
+    const scoreDiff = newScoreDelta - oldScoreDelta;
+
+    const updatedPayment: Payment = {
+      ...targetPayment,
+      paymentDayShamsi: newDay,
+      paymentDateShamsi: `${settings.currentYear}/${String(settings.currentMonthIndex + 1).padStart(2, '0')}/${String(newDay).padStart(2, '0')}`,
+      scoreDelta: newScoreDelta,
+      status: "paid",
+      isApprovedByAdmin: true
+    };
+
+    const updatedPayments = payments.map(p => p.id === paymentId ? updatedPayment : p);
+
+    const updatedMembers = members.map(m => {
+      if (m.id === targetPayment.memberId) {
+        return { ...m, score: m.score + scoreDiff };
+      }
+      return m;
+    });
+
+    persistState(updatedMembers, updatedPayments, lotteries, settings, cycles);
+  };
+
+  // Admin rejects or deletes a payment
+  const handleRejectPayment = (paymentId: string) => {
+    const targetPayment = payments.find(p => p.id === paymentId);
+    if (!targetPayment) return;
+
+    const updatedPayments = payments.filter(p => p.id !== paymentId);
+
+    // If was paid, subtract score
+    let updatedMembers = members;
+    if (targetPayment.status === "paid" && targetPayment.scoreDelta !== 0) {
+      updatedMembers = members.map(m => {
+        if (m.id === targetPayment.memberId) {
+          return { ...m, score: m.score - targetPayment.scoreDelta };
+        }
+        return m;
+      });
+    }
+
+    persistState(updatedMembers, updatedPayments, lotteries, settings, cycles);
   };
 
   // Toggle dynamic application statuses for loans from Member panel
@@ -911,6 +1016,9 @@ export default function App() {
                 onUpdateMember={handleUpdateMember}
                 onRemoveMember={handleRemoveMember}
                 onRecordPayment={handleRecordPayment}
+                onApprovePayment={handleApprovePayment}
+                onUpdatePaymentDate={handleUpdatePaymentDate}
+                onRejectPayment={handleRejectPayment}
                 onUpdateSettings={handleUpdateSettings}
                 onDrawSuccess={handleDrawSuccess}
                 onUndoLottery={handleUndoLottery}

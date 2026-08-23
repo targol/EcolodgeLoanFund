@@ -12,7 +12,7 @@ interface MemberPanelProps {
   payments: Payment[];
   settings: FundSettings;
   cycles?: FundCycle[];
-  onRecordPayment: (memberId: string, day: number) => void;
+  onRecordPayment: (memberId: string, day: number, options?: { asPending?: boolean; receiptNote?: string }) => void;
   onToggleApplyForLoan: (memberId: string, type: "main" | "emergency") => void;
 }
 
@@ -32,36 +32,64 @@ export default function MemberPanel({
 
   // Session authentication state (stored locally in runtime state)
   const [sessionMemberId, setSessionMemberId] = useState<string | null>(null);
+  const [selectedLoginMemberId, setSelectedLoginMemberId] = useState<string>(members[0]?.id || "");
   const [typedPassword, setTypedPassword] = useState("");
   const [loginError, setLoginError] = useState("");
 
   const [simulatedDay, setSimulatedDay] = useState<number>(3); // Default to day 3 payment
+  const [receiptNoteInput, setReceiptNoteInput] = useState<string>("");
+  const [isEditingPending, setIsEditingPending] = useState<boolean>(false);
   const [historyTab, setHistoryTab] = useState<"deposits" | "withdrawals">("deposits");
 
   const currentMonthName = `${PERS_MONTH_NAMES[settings.currentMonthIndex]} ${settings.currentYear}`;
+  
+  // Make sure we always have a valid target member ID
+  const effectiveSelectedMemberId = selectedLoginMemberId || activeCycleMembers[0]?.id || members[0]?.id || "";
+
+  // Auto-sync selected member if empty
+  React.useEffect(() => {
+    if (!selectedLoginMemberId && members.length > 0) {
+      setSelectedLoginMemberId(members[0].id);
+    }
+  }, [members, selectedLoginMemberId]);
 
   const handleLoginSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!sessionMemberId) {
+    const effectiveMemberId = effectiveSelectedMemberId;
+    if (!effectiveMemberId) {
       setLoginError("لطفاً حساب کاربری خود را انتخاب کنید.");
       return;
     }
-    const targetMember = members.find(m => m.id === sessionMemberId);
+    const targetMember = members.find(m => m.id === effectiveMemberId);
     if (!targetMember) {
       setLoginError("عضو مورد نظر یافت نشد.");
       return;
     }
-    if (targetMember.password !== typedPassword.trim()) {
-      setLoginError("رمز عبور وارد شده نادرست است.");
+
+    const memberPass = (targetMember.password || "123").trim();
+    const inputPass = typedPassword.trim();
+
+    // Allow empty password to default to 123 for seamless demo use or match password
+    if (inputPass && inputPass !== memberPass) {
+      setLoginError("رمز عبور وارد شده نادرست است (رمز پیش‌فرض: 123).");
       return;
     }
 
+    setSessionMemberId(effectiveMemberId);
+    setLoginError("");
+    setTypedPassword("");
+  };
+
+  const handleQuickLoginAs = (memberId: string) => {
+    setSessionMemberId(memberId);
+    setSelectedLoginMemberId(memberId);
     setLoginError("");
     setTypedPassword("");
   };
 
   const handleLogout = () => {
     setSessionMemberId(null);
+    setSelectedLoginMemberId(members[0]?.id || "");
     setTypedPassword("");
     setLoginError("");
   };
@@ -81,13 +109,8 @@ export default function MemberPanel({
 
   // CASE 1: NOT AUTHENTICATED -> Render clean login form
   if (!sessionMemberId || !members.some(m => m.id === sessionMemberId)) {
-    // Default selection from active cycle members
-    const activeId = activeCycleMembers.some(m => m.id === sessionMemberId) 
-      ? sessionMemberId 
-      : (activeCycleMembers[0]?.id || members[0]?.id || "");
-
     return (
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden max-w-md mx-auto my-4 font-sans" id="member-login-card">
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden max-w-lg mx-auto my-4 font-sans" id="member-login-card">
         <div className="p-6 bg-slate-50/50 border-b border-slate-200 text-center">
           <div className="w-12 h-12 rounded-full bg-teal-50 border border-teal-150 text-teal-800 flex items-center justify-center mx-auto mb-3">
             <Key className="w-5 h-5" />
@@ -96,7 +119,35 @@ export default function MemberPanel({
             {activeCycle ? activeCycle.title : `دوره ${toPersianDigits(settings.currentCycleNumber || 3)}`}
           </div>
           <h3 className="text-sm font-black text-slate-800">ورود به پنل کاربری اعضای {settings.fundName}</h3>
-          <p className="text-[10px] text-slate-450 mt-1">تعهدات فردی، درخواست وام و دریافت فیش‌های ماهیانه</p>
+          <p className="text-[10px] text-slate-450 mt-1">تعهدات فردی، درخواست تسهیلات و ثبت فیش‌های واریزی ماهیانه</p>
+        </div>
+
+        {/* Quick Member Selection Chips */}
+        <div className="p-4 bg-teal-50/30 border-b border-slate-150">
+          <label className="block text-[10px] font-bold text-teal-900 mb-2 text-right">
+            ⚡️ دسترسی و ورود مستقیم با یک کلیک به عنوان اقامتگاه:
+          </label>
+          <div className="flex flex-wrap gap-1.5 justify-start max-h-36 overflow-y-auto p-1">
+            {members.map(m => {
+              const isSelected = effectiveSelectedMemberId === m.id;
+              return (
+                <button
+                  key={m.id}
+                  type="button"
+                  onClick={() => handleQuickLoginAs(m.id)}
+                  className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all flex items-center gap-1 cursor-pointer border ${
+                    isSelected 
+                      ? "bg-teal-800 text-white border-teal-900 shadow-sm font-black scale-102"
+                      : "bg-white text-slate-700 hover:bg-teal-50 hover:text-teal-900 border-slate-200"
+                  }`}
+                  title={`ورود فوری به حساب ${m.name}`}
+                >
+                  <span>{m.isFoundingMember ? "⭐️" : "🏡"}</span>
+                  <span>{m.name.includes("-") ? m.name.split("-")[1].trim() : m.name}</span>
+                </button>
+              );
+            })}
+          </div>
         </div>
 
         <form onSubmit={handleLoginSubmit} className="p-6 space-y-4 text-right">
@@ -109,43 +160,64 @@ export default function MemberPanel({
 
           <div>
             <label className="block text-[11px] font-bold text-slate-700 mb-1">
-              انتخاب عضو از دوره فعال ({toPersianDigits(activeCycleMembers.length)} عضو):
+              انتخاب حساب کاربری عضو ({toPersianDigits(members.length)} عضو صندوق):
             </label>
             <select
-              value={activeId}
+              value={effectiveSelectedMemberId}
               onChange={(e) => {
-                setSessionMemberId(e.target.value);
+                setSelectedLoginMemberId(e.target.value);
                 setLoginError("");
               }}
-              className="w-full p-2.5 bg-white border border-slate-200 rounded text-xs text-slate-800 font-bold focus:outline-none focus:border-teal-700"
+              className="w-full p-2.5 bg-white border border-slate-200 rounded text-xs text-slate-800 font-bold focus:outline-none focus:border-teal-700 cursor-pointer shadow-sm"
             >
-              <option value="">-- انتخاب نام کاربری عضو --</option>
-              {activeCycleMembers.map(m => (
-                <option key={m.id} value={m.id}>
-                  {m.isFoundingMember ? "⭐️ " : ""}{m.name} {m.isFoundingMember ? "(هیئت موسس)" : ""} ({toPersianDigits(m.currentCycleShares || 1)} سهم)
-                </option>
-              ))}
+              <optgroup label={`اعضای دوره جاری (${toPersianDigits(activeCycleMembers.length)} عضو)`}>
+                {activeCycleMembers.map(m => (
+                  <option key={m.id} value={m.id}>
+                    {m.isFoundingMember ? "⭐️ " : "• "}{m.name} {m.isFoundingMember ? "(هیئت موسس)" : ""} ({toPersianDigits(m.currentCycleShares || 1)} سهم)
+                  </option>
+                ))}
+              </optgroup>
+              {members.filter(m => !activeCycleMembers.some(ac => ac.id === m.id)).length > 0 && (
+                <optgroup label="سایر اعضای صندوق (دوره‌های پیشین)">
+                  {members.filter(m => !activeCycleMembers.some(ac => ac.id === m.id)).map(m => (
+                    <option key={m.id} value={m.id}>
+                      {m.name} (دوره ۱ یا ۲)
+                    </option>
+                  ))}
+                </optgroup>
+              )}
             </select>
           </div>
 
           <div>
-            <label className="block text-[11px] font-bold text-slate-500 mb-1">کلمه عبور خود را وارد کنید:</label>
+            <div className="flex justify-between items-center mb-1">
+              <label className="block text-[11px] font-bold text-slate-700">کلمه عبور حساب کاربری:</label>
+              <span className="text-[10px] text-teal-700 font-bold">رمز پیش‌فرض دمو: 123</span>
+            </div>
             <input
               type="password"
-              placeholder="مثال: 123"
+              placeholder="رمز عبور (مثال: 123)"
               value={typedPassword}
               onChange={(e) => { setTypedPassword(e.target.value); setLoginError(""); }}
-              className="w-full p-2.5 bg-white border border-slate-200 rounded text-xs text-slate-800 focus:outline-none focus:border-teal-700"
+              className="w-full p-2.5 bg-white border border-slate-200 rounded text-xs text-slate-800 focus:outline-none focus:border-teal-700 font-bold"
             />
-            <span className="text-[9px] text-slate-400 mt-1 block leading-tight">پروفایل‌های دمو به عنوان پیش‌فرض رمز عبورشان <b>123</b> است.</span>
           </div>
 
-          <button
-            type="submit"
-            className="w-full py-2.5 bg-teal-800 hover:bg-teal-900 text-white font-black rounded text-xs transition-colors cursor-pointer"
-          >
-            ورود ایمن به حساب کاربری
-          </button>
+          <div className="flex gap-2 pt-2">
+            <button
+              type="submit"
+              className="flex-1 py-2.5 bg-teal-800 hover:bg-teal-900 text-white font-black rounded text-xs transition-colors cursor-pointer shadow-sm"
+            >
+              ورود به حساب کاربری
+            </button>
+            <button
+              type="button"
+              onClick={() => handleQuickLoginAs(effectiveSelectedMemberId)}
+              className="py-2.5 px-4 bg-teal-50 hover:bg-teal-100 text-teal-800 font-bold border border-teal-200 rounded text-xs transition-colors cursor-pointer"
+            >
+              ورود سریع (دمو)
+            </button>
+          </div>
         </form>
       </div>
     );
@@ -164,6 +236,7 @@ export default function MemberPanel({
   const memberPayments = payments.filter(p => p.memberId === activeMember.id);
   const currentMonthPayment = memberPayments.find(p => p.monthName === currentMonthName);
   const isPaidThisMonth = currentMonthPayment?.status === "paid";
+  const isPendingThisMonth = currentMonthPayment?.status === "pending_approval";
 
   // Score simulation info
   let simulatedScoreCalculations = calculatePaymentScore(simulatedDay, totalMonthlyCommitment, settings.lotteryDayOfMonth);
@@ -178,7 +251,7 @@ export default function MemberPanel({
 
   // Stats calculation
   const paidCount = memberPayments.filter(p => p.status === "paid").length;
-  const earnedScores = memberPayments.reduce((acc, p) => acc + p.scoreDelta, 0);
+  const earnedScores = memberPayments.reduce((acc, p) => p.status === "paid" ? acc + p.scoreDelta : acc, 0);
 
   // Total active shares in cycle for main loan pool calculation
   const totalCycleShares = activeCycleMembers.reduce((sum, m) => sum + (m.currentCycleShares || 1), 0);
@@ -225,15 +298,18 @@ export default function MemberPanel({
             </div>
 
             {isPaidThisMonth && currentMonthPayment ? (
-              // Case A: Member is already PAID
+              // Case A: Member is already PAID and APPROVED by Admin
               <div className="p-6 bg-teal-50/20 rounded-xl border border-teal-150 text-center space-y-4">
                 <div className="w-11 h-11 bg-teal-100 text-teal-700 rounded-full flex items-center justify-center mx-auto shadow-sm">
                   <Check className="w-5 h-5" />
                 </div>
                 <div>
-                  <h5 className="text-sm font-black text-teal-950">قسط ماهیانه و تعهد پس‌انداز این ماه دریافت شد!</h5>
+                  <div className="inline-block px-2.5 py-0.5 bg-teal-100 text-teal-900 rounded-full text-[10px] font-black mb-2">
+                    ✅ تایید نهایی شده توسط مدیر صندوق
+                  </div>
+                  <h5 className="text-sm font-black text-teal-950">قسط ماهیانه و تعهد پس‌انداز این ماه با موفقیت دریافت و تایید شد!</h5>
                   <p className="text-xs text-slate-500 mt-1">
-                    پرداختی شما ({toPersianDigits(memberShares)} سهم) به ارزش مجموع <b>{formatCurrency(totalMonthlyCommitment)}</b> در تاریخ {currentMonthPayment.paymentDateShamsi} (روز {toPersianDigits(currentMonthPayment.paymentDayShamsi)}ام ماه) در دفاتر صندوق به ثبت رسیده است.
+                    پرداختی شما ({toPersianDigits(memberShares)} سهم) به ارزش مجموع <b>{formatCurrency(totalMonthlyCommitment)}</b> در تاریخ <b>{currentMonthPayment.paymentDateShamsi}</b> (روز {toPersianDigits(currentMonthPayment.paymentDayShamsi)}ام ماه) در دفاتر رسمی صندوق به ثبت و تایید نهایی رسیده است.
                   </p>
                   <p className="text-[11px] text-slate-450 mt-1 font-mono">
                     (قسط وام قرض‌الحسنه: {formatCurrency(currentMonthlyInstallment)} + پس‌انداز صندوق طلا: {formatCurrency(currentMonthlySavings)})
@@ -241,19 +317,67 @@ export default function MemberPanel({
                 </div>
                 
                 <div className="inline-block px-4 py-2 bg-white rounded-lg border border-slate-200 shadow-sm text-xs">
-                  <span className="text-slate-500">امتیاز خوش‌حسابی واریز: </span>
+                  <span className="text-slate-500">امتیاز خوش‌حسابی اعمال‌شده: </span>
                   <strong className={`font-mono text-sm ${currentMonthPayment.scoreDelta >= 0 ? 'text-teal-750 font-black' : 'text-rose-600'}`}>
                     {currentMonthPayment.scoreDelta >= 0 ? '+' : ''}{toPersianDigits(new Intl.NumberFormat("en-US").format(currentMonthPayment.scoreDelta))} امتیاز
                   </strong>
                 </div>
               </div>
+            ) : isPendingThisMonth && currentMonthPayment && !isEditingPending ? (
+              // Case B: Member SUBMITTED receipt, WAITING for Admin approval
+              <div className="p-6 bg-amber-50/40 rounded-xl border border-amber-200 space-y-4 text-right">
+                <div className="flex items-start gap-3">
+                  <div className="w-10 h-10 rounded-full bg-amber-100 text-amber-800 flex items-center justify-center shrink-0 font-bold">
+                    <Clock className="w-5 h-5 animate-spin text-amber-700" style={{ animationDuration: "3s" }} />
+                  </div>
+                  <div className="flex-1">
+                    <div className="flex items-center justify-between">
+                      <h5 className="text-sm font-black text-amber-950">فیش واریزی ثبت شد — در انتظار تایید نهایی ادمین</h5>
+                      <span className="px-2 py-0.5 bg-amber-100 border border-amber-300 text-amber-900 rounded text-[10px] font-bold">
+                        ⏳ در انتظار بررسی مدیر صندوق
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-600 mt-1.5 leading-relaxed">
+                      فیش واریزی شما ({toPersianDigits(memberShares)} سهم) به ارزش <b>{formatCurrency(totalMonthlyCommitment)}</b> با تاریخ اظهارشده <b>{currentMonthPayment.paymentDateShamsi} (روز {toPersianDigits(currentMonthPayment.paymentDayShamsi)}ام)</b> ثبت گردیده است.
+                    </p>
+                    {currentMonthPayment.receiptNote && (
+                      <div className="mt-2 p-2.5 bg-white rounded border border-amber-200 text-xs text-slate-700">
+                        <span className="font-bold text-slate-500">یادداشت / شماره پیگیری:</span> {currentMonthPayment.receiptNote}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="p-3 bg-white rounded-lg border border-slate-200 text-xs flex justify-between items-center">
+                  <span className="text-slate-500">پیش‌بینی امتیاز خوش‌حسابی (پس از تایید ادمین):</span>
+                  <strong className={`font-mono text-sm ${currentMonthPayment.scoreDelta >= 0 ? 'text-teal-700' : 'text-rose-600'}`}>
+                    {currentMonthPayment.scoreDelta >= 0 ? '+' : ''}{toPersianDigits(new Intl.NumberFormat("en-US").format(currentMonthPayment.scoreDelta))} امتیاز
+                  </strong>
+                </div>
+
+                <div className="flex justify-end pt-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSimulatedDay(currentMonthPayment.paymentDayShamsi);
+                      setReceiptNoteInput(currentMonthPayment.receiptNote || "");
+                      setIsEditingPending(true);
+                    }}
+                    className="px-3.5 py-1.5 bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 rounded text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5"
+                  >
+                    <span>✏️ ویرایش تاریخ یا اطلاعات فیش ثبت‌شده</span>
+                  </button>
+                </div>
+              </div>
             ) : (
-              // Case B: Member is UNPAID (Let them simulate or record self-payment)
+              // Case C: Member is UNPAID or EDITING pending submission
               <div className="space-y-4" id="member-unpaid-workspace">
                 <div className="p-4 bg-rose-50/40 rounded-lg border border-rose-100 flex items-start gap-3">
                   <AlertCircle className="w-5 h-5 text-rose-500 shrink-0 mt-0.5" />
                   <div>
-                    <h5 className="text-xs font-bold text-rose-950">تعهد واریز این ماه باز است! ({toPersianDigits(memberShares)} سهم)</h5>
+                    <h5 className="text-xs font-bold text-rose-950">
+                      {isEditingPending ? "ویرایش اطلاعات فیش واریزی ماه جاری" : `تعهد واریز این ماه باز است! (${toPersianDigits(memberShares)} سهم)`}
+                    </h5>
                     <p className="text-[10px] text-slate-500 mt-1 leading-relaxed">
                       حق قسط ماهیانه شما <b>{formatCurrency(currentMonthlyInstallment)}</b> به همراه اندوخته پس‌انداز طلا <b>{formatCurrency(currentMonthlySavings)}</b> است. مجموع تعهد قابل واریز: <b>{formatCurrency(totalMonthlyCommitment)}</b>
                     </p>
@@ -263,9 +387,9 @@ export default function MemberPanel({
                 {/* Date Calendar Picker Grid & Score Predictor Widget */}
                 <div className="p-5 rounded-lg bg-slate-50 border border-slate-200 space-y-4 font-sans">
                   <div className="flex justify-between items-center pb-2 border-b border-slate-200">
-                    <span className="text-xs font-bold text-slate-705">روز واریز فیش را بر روی تقویم شمسی زیر انتخاب کنید:</span>
+                    <span className="text-xs font-bold text-slate-705">روز دقیق واریز فیش را روی تقویم شمسی زیر انتخاب کنید:</span>
                     <span className="font-mono font-bold text-teal-700 text-xs shrink-0 bg-white px-2 py-1 rounded border border-slate-250">
-                      روز {toPersianDigits(simulatedDay)} ام برج
+                      روز {toPersianDigits(simulatedDay)} ام ماه
                     </span>
                   </div>
 
@@ -298,6 +422,20 @@ export default function MemberPanel({
                         </button>
                       );
                     })}
+                  </div>
+
+                  {/* Receipt note / tracking input */}
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                      کد پیگیری، شماره ارجاع فیش یا توضیحات (اختیاری):
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="مثال: پیگیری ۱۲۳۴۵۶ - انتقال پایا از بانک ملت"
+                      value={receiptNoteInput}
+                      onChange={(e) => setReceiptNoteInput(e.target.value)}
+                      className="w-full p-2 bg-white border border-slate-200 rounded text-xs text-slate-800 focus:outline-none focus:border-teal-700"
+                    />
                   </div>
 
                   {/* dynamic analysis chart */}
@@ -333,17 +471,33 @@ export default function MemberPanel({
                   </div>
                 </div>
 
-                {/* Record Button */}
-                <button
-                  type="button"
-                  onClick={() => {
-                    onRecordPayment(activeMember.id, simulatedDay);
-                  }}
-                  className="w-full py-3 bg-teal-800 hover:bg-teal-900 text-white font-black rounded-lg text-xs shadow-md shadow-teal-700/10 transition-all flex items-center justify-center gap-2 cursor-pointer"
-                >
-                  <CreditCard className="w-4 h-4 text-teal-100" />
-                  <span>ثبت و واریز قسط ماهیانه {formatCurrency(totalMonthlyCommitment)} ({toPersianDigits(memberShares)} سهم)</span>
-                </button>
+                {/* Submit Button */}
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onRecordPayment(activeMember.id, simulatedDay, {
+                        asPending: true,
+                        receiptNote: receiptNoteInput.trim() || undefined
+                      });
+                      setIsEditingPending(false);
+                      setReceiptNoteInput("");
+                    }}
+                    className="flex-1 py-3 bg-teal-800 hover:bg-teal-900 text-white font-black rounded-lg text-xs shadow-md shadow-teal-700/10 transition-all flex items-center justify-center gap-2 cursor-pointer"
+                  >
+                    <CreditCard className="w-4 h-4 text-teal-100" />
+                    <span>📤 ثبت فیش واریزی و ارسال جهت تایید مدیر صندوق ({toPersianDigits(memberShares)} سهم)</span>
+                  </button>
+                  {isEditingPending && (
+                    <button
+                      type="button"
+                      onClick={() => setIsEditingPending(false)}
+                      className="px-4 py-3 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg text-xs font-bold cursor-pointer"
+                    >
+                      انصراف
+                    </button>
+                  )}
+                </div>
               </div>
             )}
           </div>

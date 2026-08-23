@@ -14,7 +14,7 @@ import {
   Settings as SettingsIcon, Save, RefreshCw, Trophy, Info, Key, Shield, Eye, EyeOff, Filter,
   Send, Bot, MessageSquare, Loader2, CheckCircle2, Radio, Image as ImageIcon, Upload, Link as LinkIcon,
   Layers, Download, Database, FileCode, Copy, CheckCircle, Code, HelpCircle,
-  Phone, ExternalLink, Plus, RotateCcw, Share2, CheckCheck, BellRing, FileText
+  Phone, ExternalLink, Plus, RotateCcw, Share2, CheckCheck, BellRing, FileText, Clock
 } from "lucide-react";
 import LotteryDraw from "./LotteryDraw";
 import CycleManager from "./CycleManager";
@@ -29,6 +29,9 @@ interface AdminPanelProps {
   onUpdateMember: (id: string, updatedFields: Partial<Member>) => void;
   onRemoveMember: (id: string) => void;
   onRecordPayment: (memberId: string, day: number) => void;
+  onApprovePayment?: (paymentId: string, finalDay?: number) => void;
+  onUpdatePaymentDate?: (paymentId: string, newDay: number) => void;
+  onRejectPayment?: (paymentId: string) => void;
   onUpdateSettings: (newSettings: Partial<FundSettings>) => void;
   onDrawSuccess: (winnerId: string, method: "random" | "weighted" | "manual" | "emergency_random" | "emergency_manual", loanType: "main" | "emergency", customAmount?: number, customWinnerDate?: string) => void;
   onUndoLottery?: (lotteryId: string) => void;
@@ -52,6 +55,9 @@ export default function AdminPanel({
   onUpdateMember,
   onRemoveMember,
   onRecordPayment,
+  onApprovePayment,
+  onUpdatePaymentDate,
+  onRejectPayment,
   onUpdateSettings,
   onDrawSuccess,
   onUndoLottery,
@@ -69,7 +75,7 @@ export default function AdminPanel({
   // Active cycle computation
   const activeCycle = cycles.find(c => c.status === "active") || cycles.find(c => c.cycleNumber === settings.currentCycleNumber) || cycles[cycles.length - 1];
   const activeCycleMembers = activeCycle?.memberIds 
-    ? members.filter(m => activeCycle.memberIds.includes(m.id))
+    ? members.filter(m => activeCycle.memberIds.includes(m.id)) 
     : members;
 
   // Form states - Add user
@@ -91,9 +97,13 @@ export default function AdminPanel({
   const [editingPhoneUserId, setEditingPhoneUserId] = useState<string | null>(null);
   const [tempUserPhone, setTempUserPhone] = useState("");
 
-  // Payment Recording State inline
+  // Payment Recording & Reviewing State inline
   const [recordingPaymentForMemberId, setRecordingPaymentForMemberId] = useState<string | null>(null);
   const [paymentDayInput, setPaymentDayInput] = useState<number>(1);
+  const [editingPaymentId, setEditingPaymentId] = useState<string | null>(null);
+  const [editingPaymentDay, setEditingPaymentDay] = useState<number>(1);
+  const [isReviewingPending, setIsReviewingPending] = useState<boolean>(false);
+  const [paymentFilter, setPaymentFilter] = useState<"all" | "pending" | "paid" | "unpaid">("all");
 
   // Unified Telegram & Messaging Hub states
   const [messagingSubTab, setMessagingSubTab] = useState<"sender" | "templates" | "settings">("sender");
@@ -582,20 +592,34 @@ export default function AdminPanel({
         {/* Tab 1: PAYMENTS */}
         {activeTab === "payments" && (
           <div className="space-y-4" id="admin-payments-subview">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-2">
-              <div>
-                <h4 className="text-sm font-black text-slate-800">تاییدیه‌های مالی دورۀ {currentMonthName}</h4>
-                <p className="text-[11px] text-slate-450 mt-1">تعهدات پرداخت اعضای دوره جاری (اقساط پایه: {formatCurrency(activeCycle?.monthlyAmount || settings.monthlyAmount)} + پس‌انداز: {formatCurrency(activeCycle?.savingsAmount || settings.savingsAmount || 500000)}) در ماه جاری را تایید کنید.</p>
+            {/* Pending Receipts Alert & Unpaid Members Notification */}
+            {activeCycleMembers.some(m => payments.some(p => p.memberId === m.id && p.monthName === currentMonthName && p.status === "pending_approval")) && (
+              <div className="p-3.5 bg-amber-50 border border-amber-200 rounded-xl flex flex-wrap items-center justify-between gap-3 text-xs text-amber-900 font-sans shadow-sm">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-lg bg-amber-100 text-amber-800 flex items-center justify-center shrink-0">
+                    <Clock className="w-4 h-4 text-amber-700 animate-pulse" />
+                  </div>
+                  <div>
+                    <span className="font-black text-amber-950">
+                      تعداد {toPersianDigits(activeCycleMembers.filter(m => payments.some(p => p.memberId === m.id && p.monthName === currentMonthName && p.status === "pending_approval")).length)} فیش واریزی جدید توسط اعضا ثبت شده و در انتظار تایید نهایی شماست.
+                    </span>
+                    <span className="block text-[10px] text-amber-750 font-normal mt-0.5">
+                      شما می‌توانید تاریخ واریز را بررسی، در صورت نیاز اصلاح کرده و فیش را نهایی کنید.
+                    </span>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setPaymentFilter("pending")}
+                  className="px-3 py-1.5 bg-amber-700 hover:bg-amber-800 text-white rounded-lg text-xs font-black transition-all cursor-pointer shadow-sm"
+                >
+                  فیلتر فیش‌های در انتظار تایید
+                </button>
               </div>
-              <div className="bg-teal-50 text-teal-800 text-[11px] px-3 py-1.5 rounded-lg border border-teal-100 flex items-center gap-1.5 self-start font-bold">
-                <Calendar className="w-4 h-4 text-teal-700" />
-                <span>مهلت پرداخت: ۵ام هر ماه</span>
-              </div>
-            </div>
+            )}
 
-            {/* Unpaid Alert & Reminder Banner */}
             {unpaidActiveMembers.length > 0 && (
-              <div className="p-3.5 bg-rose-50/90 border border-rose-200 rounded-xl flex flex-wrap items-center justify-between gap-3 text-xs text-rose-900 font-bold">
+              <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-xl flex flex-wrap items-center justify-between gap-3 text-xs text-rose-900 font-sans shadow-sm">
                 <div className="flex items-center gap-2.5">
                   <div className="w-8 h-8 rounded-lg bg-rose-100 text-rose-700 flex items-center justify-center shrink-0">
                     <BellRing className="w-4 h-4 text-rose-600" />
@@ -619,38 +643,90 @@ export default function AdminPanel({
               </div>
             )}
 
-            {/* Active Cycle Scope Alert */}
-            <div className="p-3 bg-teal-50/70 border border-teal-200 rounded-xl flex flex-wrap items-center justify-between gap-2 text-xs text-teal-900 font-bold">
-              <div className="flex items-center gap-2">
-                <Layers className="w-4 h-4 text-teal-700" />
-                <span>اعضای فعال در {activeCycle?.title || 'دوره جاری'}: {toPersianDigits(activeCycleMembers.length)} عضو ({toPersianDigits(activeCycleMembers.reduce((sum, m) => sum + (activeCycle?.memberShares?.[m.id] || m.currentCycleShares || 1), 0))} سهم)</span>
+            {/* Filter Tabs & Scope Header */}
+            <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
+              {/* Payment Filter Buttons */}
+              <div className="flex flex-wrap items-center gap-1.5 bg-slate-100 p-1 rounded-xl border border-slate-200">
+                <button
+                  type="button"
+                  onClick={() => setPaymentFilter("all")}
+                  className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                    paymentFilter === "all" ? "bg-white text-slate-800 shadow-sm" : "text-slate-500 hover:text-slate-800"
+                  }`}
+                >
+                  همه اعضا ({toPersianDigits(activeCycleMembers.length)})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPaymentFilter("pending")}
+                  className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1 ${
+                    paymentFilter === "pending" 
+                      ? "bg-amber-600 text-white shadow-sm" 
+                      : "text-amber-800 hover:bg-amber-100/50"
+                  }`}
+                >
+                  <span>⏳ در انتظار تایید</span>
+                  <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono font-black ${paymentFilter === "pending" ? "bg-white text-amber-800" : "bg-amber-200 text-amber-900"}`}>
+                    {toPersianDigits(activeCycleMembers.filter(m => payments.some(p => p.memberId === m.id && p.monthName === currentMonthName && p.status === "pending_approval")).length)}
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPaymentFilter("paid")}
+                  className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                    paymentFilter === "paid" ? "bg-teal-700 text-white shadow-sm" : "text-teal-800 hover:bg-teal-100/50"
+                  }`}
+                >
+                  وصول‌شده ({toPersianDigits(activeCycleMembers.filter(m => payments.some(p => p.memberId === m.id && p.monthName === currentMonthName && p.status === "paid")).length)})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPaymentFilter("unpaid")}
+                  className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                    paymentFilter === "unpaid" ? "bg-rose-600 text-white shadow-sm" : "text-rose-700 hover:bg-rose-100/50"
+                  }`}
+                >
+                  پرداخت‌نشده ({toPersianDigits(unpaidActiveMembers.length)})
+                </button>
               </div>
-              <span className="text-[10px] text-teal-700 font-normal bg-white px-2 py-0.5 rounded border border-teal-150">
-                تنها اعضای این دوره در جدول وصول و ثبت اقساط نمایش داده می‌شوند
-              </span>
+
+              {/* Active Cycle Badge */}
+              <div className="text-[11px] font-bold text-teal-800 bg-teal-50 px-3 py-1 rounded-lg border border-teal-150 flex items-center gap-1.5">
+                <Layers className="w-3.5 h-3.5 text-teal-700" />
+                <span>{activeCycle?.title || 'دوره جاری'} ({toPersianDigits(activeCycleMembers.length)} عضو)</span>
+              </div>
             </div>
 
             <div className="overflow-x-auto border border-slate-200 rounded-xl">
-              <table className="w-full text-right text-xs min-w-[800px] whitespace-nowrap">
+              <table className="w-full text-right text-xs min-w-[850px] whitespace-nowrap">
                 <thead className="bg-slate-50 text-slate-500 font-bold border-b border-slate-200 col-span-1 border-t-0 border-r-0 border-l-0">
                   <tr>
                     <th className="p-3.5">نام عضو و سهم</th>
-                    <th className="p-3.5">وضعیت واریزی کل این ماه</th>
+                    <th className="p-3.5">وضعیت واریزی ماه جاری</th>
                     <th className="p-3.5">شماره تماس / تلگرام</th>
-                    <th className="p-3.5">تاریخ ثبت فیش</th>
-                    <th className="p-3.5">مبلغ اقساط وام</th>
-                    <th className="p-3.5">مبلغ پس‌انداز طلا</th>
-                    <th className="p-3.5">امتیاز تاخیر/تعجیل</th>
-                    <th className="p-3.5 text-center">عملیات ثبت</th>
+                    <th className="p-3.5">تاریخ فیش (روز ماه)</th>
+                    <th className="p-3.5">مبلغ تعهد کل</th>
+                    <th className="p-3.5">امتیاز خوش‌حسابی</th>
+                    <th className="p-3.5 text-center">عملیات بررسی، تایید و ویرایش</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-150 text-slate-700">
-                  {activeCycleMembers.map((member) => {
+                  {activeCycleMembers
+                    .filter((member) => {
+                      const payment = payments.find(p => p.memberId === member.id && p.monthName === currentMonthName);
+                      if (paymentFilter === "pending") return payment?.status === "pending_approval";
+                      if (paymentFilter === "paid") return payment?.status === "paid";
+                      if (paymentFilter === "unpaid") return !payment || payment.status === "unpaid";
+                      return true;
+                    })
+                    .map((member) => {
                     const payment = payments.find(p => p.memberId === member.id && p.monthName === currentMonthName);
                     const isPaid = payment?.status === "paid";
+                    const isPending = payment?.status === "pending_approval";
                     const memberShares = activeCycle?.memberShares?.[member.id] || member.currentCycleShares || 1;
                     const calculatedInstallment = (activeCycle?.monthlyAmount || settings.monthlyAmount) * memberShares;
                     const calculatedSavings = (activeCycle?.savingsAmount || settings.savingsAmount || 500000) * memberShares;
+                    const totalCommitment = calculatedInstallment + calculatedSavings;
                     
                     return (
                       <tr key={member.id} className="hover:bg-slate-50/50 transition-colors">
@@ -695,9 +771,25 @@ export default function AdminPanel({
                         </td>
                         <td className="p-3.5">
                           {isPaid ? (
-                            <span className="text-teal-700 bg-teal-50 text-[10px] px-2.5 py-1 rounded border border-teal-100 font-bold inline-flex items-center gap-1">
-                              <Check className="w-3.5 h-3.5" /> وصول شد
-                            </span>
+                            <div>
+                              <span className="text-teal-700 bg-teal-50 text-[10px] px-2.5 py-1 rounded border border-teal-100 font-black inline-flex items-center gap-1">
+                                <Check className="w-3.5 h-3.5" /> تایید و وصول شد
+                              </span>
+                              {payment?.approvedAtShamsi && (
+                                <span className="block text-[9px] text-slate-400 mt-0.5">تایید: {payment.approvedAtShamsi}</span>
+                              )}
+                            </div>
+                          ) : isPending ? (
+                            <div>
+                              <span className="text-amber-800 bg-amber-100 text-[10px] px-2.5 py-1 rounded border border-amber-300 font-black inline-flex items-center gap-1 animate-pulse">
+                                <Clock className="w-3.5 h-3.5" /> ⏳ در انتظار تایید نهایی فیش
+                              </span>
+                              {payment?.receiptNote && (
+                                <span className="block text-[9px] text-slate-600 mt-1 max-w-[160px] truncate" title={payment.receiptNote}>
+                                  پیگیری: {payment.receiptNote}
+                                </span>
+                              )}
+                            </div>
                           ) : (
                             <span className="text-rose-500 bg-rose-50 text-[10px] px-2.5 py-1 rounded border border-rose-100 font-bold inline-flex items-center gap-1">
                               <AlertCircle className="w-3.5 h-3.5" /> پرداخت نشده
@@ -708,7 +800,7 @@ export default function AdminPanel({
                           {member.phone ? (
                             <div className="flex items-center gap-1.5">
                               <span className="font-mono text-[11px] text-slate-600">{toPersianDigits(member.phone)}</span>
-                              {!isPaid && (
+                              {!isPaid && !isPending && (
                                 <a
                                   href={getTelegramDirectLink(member.phone, getDynamicMessageFor("unpaid", member.id))}
                                   target="_blank"
@@ -726,118 +818,278 @@ export default function AdminPanel({
                           )}
                         </td>
                         <td className="p-3.5 font-mono text-slate-600">
-                          {isPaid && payment ? (
-                            <span>{payment.paymentDateShamsi}</span>
+                          {payment ? (
+                            <div>
+                              <span className="font-bold text-slate-800">{payment.paymentDateShamsi}</span>
+                              <span className="text-[10px] text-slate-400 block">(روز {toPersianDigits(payment.paymentDayShamsi)}ام ماه)</span>
+                            </div>
                           ) : (
                             <span className="text-slate-400">-</span>
                           )}
                         </td>
-                        <td className="p-3.5 font-mono text-slate-600">
-                          {formatCurrency(payment?.amount || calculatedInstallment)}
-                        </td>
-                        <td className="p-3.5 font-mono text-blue-800">
-                          {formatCurrency(payment?.savingsAmount || calculatedSavings)}
+                        <td className="p-3.5 font-mono text-slate-700">
+                          <span className="font-bold">{formatCurrency(payment ? (payment.amount + payment.savingsAmount) : totalCommitment)}</span>
+                          <span className="text-[9px] text-slate-400 block font-sans">
+                            ({formatCurrency(payment?.amount || calculatedInstallment)} قسط + {formatCurrency(payment?.savingsAmount || calculatedSavings)} طلا)
+                          </span>
                         </td>
                         <td className="p-3.5">
                           {isPaid && payment ? (
                             <span className={`font-mono font-bold ${payment.scoreDelta >= 0 ? 'text-teal-650' : 'text-rose-500'}`}>
                               {payment.scoreDelta >= 0 ? '+' : ''}{toPersianDigits(new Intl.NumberFormat("en-US").format(payment.scoreDelta))}
                             </span>
+                          ) : isPending && payment ? (
+                            <span className="font-mono text-[11px] text-amber-700 font-bold">
+                              پیش‌بینی: {payment.scoreDelta >= 0 ? '+' : ''}{toPersianDigits(new Intl.NumberFormat("en-US").format(payment.scoreDelta))}
+                            </span>
                           ) : (
                             <span className="text-slate-400">نامشخص</span>
                           )}
                         </td>
                         <td className="p-3.5 text-center">
-                          {isPaid ? (
-                            <span className="text-teal-700 text-[11px] font-bold">پرداخت نهایی شد</span>
-                          ) : (
-                            <div className="flex justify-center">
-                              {recordingPaymentForMemberId === member.id ? (
-                                <div className="bg-slate-50 p-3 rounded-lg border border-slate-300 flex flex-col gap-3 min-w-[280px] max-w-sm text-right shadow-sm">
-                                  <div className="flex justify-between items-center pb-1.5 border-b border-slate-200">
-                                    <span className="text-[10px] font-bold text-slate-500">تاریخ فرضی فیش شمسی:</span>
-                                    <span className="text-[10px] font-black text-slate-400 bg-white border border-slate-200 px-1.5 py-0.5 rounded font-mono">
-                                      روز {toPersianDigits(paymentDayInput)} از ۳۰/۳۱
-                                    </span>
-                                  </div>
+                          <div className="flex justify-center">
+                            {/* IF ADMIN IS CURRENTLY REVIEWING / EDITING THIS PAYMENT */}
+                            {editingPaymentId === (payment?.id || member.id) ? (
+                              <div className="bg-slate-50 p-3 rounded-lg border border-slate-300 flex flex-col gap-3 min-w-[280px] max-w-sm text-right shadow-md">
+                                <div className="flex justify-between items-center pb-1.5 border-b border-slate-200">
+                                  <span className="text-[10px] font-bold text-slate-700">
+                                    {isReviewingPending ? "بررسی و تغییر تاریخ فیش واریزی:" : "ویرایش تاریخ فیش ثبت‌شده:"}
+                                  </span>
+                                  <span className="text-[10px] font-black text-teal-800 bg-white border border-slate-200 px-1.5 py-0.5 rounded font-mono">
+                                    روز {toPersianDigits(editingPaymentDay)}ام برج
+                                  </span>
+                                </div>
 
-                                  {/* Graphical Shamsi Calendar Grid Selector */}
-                                  <div className="space-y-1.5">
-                                    <label className="text-[9px] font-bold text-slate-500 block">روز پرداخت را روی تقویم کلیک کنید:</label>
-                                    <div className="grid grid-cols-7 gap-1 text-center bg-white p-2 rounded-lg border border-slate-150 shadow-inner font-sans">
-                                      {/* Weekday abbreviations */}
-                                      {["ش", "ی", "د", "س", "چ", "پ", "ج"].map((w, index) => (
-                                        <span key={index} className="text-[9px] text-slate-400 font-bold py-0.5">{w}</span>
-                                      ))}
-                                      {/* Render Days based on Month length */}
-                                      {Array.from({ length: (settings.currentMonthIndex <= 5 ? 31 : (settings.currentMonthIndex <= 10 ? 30 : 29)) }, (_, idx) => {
-                                        const dayNum = idx + 1;
-                                        const isSelected = paymentDayInput === dayNum;
-                                        const isEarly = dayNum <= settings.lotteryDayOfMonth;
-                                        return (
-                                          <button
-                                            key={dayNum}
-                                            type="button"
-                                            onClick={() => setPaymentDayInput(dayNum)}
-                                            className={`h-7 rounded text-[11px] font-mono font-bold transition-all flex flex-col items-center justify-center cursor-pointer ${
-                                              isSelected 
-                                                ? "bg-teal-700 text-white font-black scale-105 shadow-sm border border-teal-800"
-                                                : isEarly
-                                                  ? "bg-emerald-55 bg-emerald-100 hover:bg-emerald-200 text-emerald-800 border border-emerald-200"
-                                                  : "bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-100"
-                                            }`}
-                                            title={isEarly ? `تعجیل خوش‌حسابی (روز ${dayNum})` : `تاخیر دیرکرد (روز ${dayNum})`}
-                                          >
-                                            <span>{toPersianDigits(dayNum)}</span>
-                                          </button>
-                                        );
-                                      })}
-                                    </div>
+                                {payment?.receiptNote && (
+                                  <div className="p-2 bg-white rounded border border-amber-200 text-[10px] text-slate-700">
+                                    <span className="font-bold text-slate-500">یادداشت عضو:</span> {payment.receiptNote}
                                   </div>
+                                )}
 
-                                  <div className="flex justify-between items-center text-[10px]">
-                                    <span className="text-slate-500">تاثیر ارزش امتیاز خوش‌حسابی:</span>
-                                    {member.hasWon ? (
-                                      <span className="font-bold text-teal-700">۰ امتیاز (معاف - برنده تسهیلات)</span>
-                                    ) : (
-                                      <span className={`font-bold font-mono ${calculatePaymentScore(paymentDayInput, totalAmountToCalculateScore, settings.lotteryDayOfMonth).score >= 0 ? 'text-teal-650' : 'text-rose-500'}`}>
-                                        {calculatePaymentScore(paymentDayInput, totalAmountToCalculateScore, settings.lotteryDayOfMonth).score >= 0 ? '+' : ''}
-                                        {toPersianDigits(new Intl.NumberFormat("en-US").format(calculatePaymentScore(paymentDayInput, totalAmountToCalculateScore, settings.lotteryDayOfMonth).score))}
-                                      </span>
-                                    )}
-                                  </div>
-
-                                  <div className="flex gap-2 pt-1.5 border-t border-slate-200">
-                                    <button
-                                      onClick={() => {
-                                        onRecordPayment(member.id, paymentDayInput);
-                                        setRecordingPaymentForMemberId(null);
-                                      }}
-                                      className="flex-1 bg-teal-800 hover:bg-teal-905 text-white rounded py-1.5 text-[10px] font-extrabold cursor-pointer transition-colors"
-                                    >
-                                      تایید نهایی و ثبت
-                                    </button>
-                                    <button
-                                      onClick={() => setRecordingPaymentForMemberId(null)}
-                                      className="bg-slate-100 hover:bg-slate-200 text-slate-500 rounded px-2.5 py-1.5 text-[10px] font-bold cursor-pointer transition-colors"
-                                    >
-                                      لغو
-                                    </button>
+                                {/* Graphical Shamsi Calendar Grid Selector for Admin */}
+                                <div className="space-y-1.5">
+                                  <label className="text-[9px] font-bold text-slate-500 block">روز دقیق واریز را جهت محاسبه تراز امتیاز انتخاب کنید:</label>
+                                  <div className="grid grid-cols-7 gap-1 text-center bg-white p-2 rounded-lg border border-slate-150 shadow-inner font-sans">
+                                    {["ش", "ی", "د", "س", "چ", "پ", "ج"].map((w, index) => (
+                                      <span key={index} className="text-[9px] text-slate-400 font-bold py-0.5">{w}</span>
+                                    ))}
+                                    {Array.from({ length: (settings.currentMonthIndex <= 5 ? 31 : (settings.currentMonthIndex <= 10 ? 30 : 29)) }, (_, idx) => {
+                                      const dayNum = idx + 1;
+                                      const isSelected = editingPaymentDay === dayNum;
+                                      const isEarly = dayNum <= settings.lotteryDayOfMonth;
+                                      return (
+                                        <button
+                                          key={dayNum}
+                                          type="button"
+                                          onClick={() => setEditingPaymentDay(dayNum)}
+                                          className={`h-7 rounded text-[11px] font-mono font-bold transition-all flex flex-col items-center justify-center cursor-pointer ${
+                                            isSelected 
+                                              ? "bg-teal-700 text-white font-black scale-105 shadow-sm border border-teal-800"
+                                              : isEarly
+                                                ? "bg-emerald-100 hover:bg-emerald-200 text-emerald-800 border border-emerald-200"
+                                                : "bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-100"
+                                          }`}
+                                          title={isEarly ? `تعجیل خوش‌حسابی (روز ${dayNum})` : `تاخیر دیرکرد (روز ${dayNum})`}
+                                        >
+                                          <span>{toPersianDigits(dayNum)}</span>
+                                        </button>
+                                      );
+                                    })}
                                   </div>
                                 </div>
-                              ) : (
+
+                                <div className="flex justify-between items-center text-[10px]">
+                                  <span className="text-slate-500">امتیاز نهایی خوش‌حسابی:</span>
+                                  {member.hasWon ? (
+                                    <span className="font-bold text-teal-700">۰ امتیاز (معاف - برنده وام)</span>
+                                  ) : (
+                                    <span className={`font-bold font-mono ${calculatePaymentScore(editingPaymentDay, totalAmountToCalculateScore, settings.lotteryDayOfMonth).score >= 0 ? 'text-teal-650' : 'text-rose-500'}`}>
+                                      {calculatePaymentScore(editingPaymentDay, totalAmountToCalculateScore, settings.lotteryDayOfMonth).score >= 0 ? '+' : ''}
+                                      {toPersianDigits(new Intl.NumberFormat("en-US").format(calculatePaymentScore(editingPaymentDay, totalAmountToCalculateScore, settings.lotteryDayOfMonth).score))}
+                                    </span>
+                                  )}
+                                </div>
+
+                                <div className="flex flex-col gap-1.5 pt-1.5 border-t border-slate-200">
+                                  {isReviewingPending && payment ? (
+                                    <div className="flex gap-2">
+                                      <button
+                                        onClick={() => {
+                                          if (onApprovePayment) {
+                                            onApprovePayment(payment.id, editingPaymentDay);
+                                          }
+                                          setEditingPaymentId(null);
+                                        }}
+                                        className="flex-1 bg-teal-800 hover:bg-teal-900 text-white rounded py-1.5 text-[10px] font-extrabold cursor-pointer transition-colors"
+                                      >
+                                        ✅ تایید نهایی فیش با این تاریخ
+                                      </button>
+                                      <button
+                                        onClick={() => {
+                                          if (confirm("آیا از رد و حذف این فیش اطمینان دارید؟")) {
+                                            if (onRejectPayment) onRejectPayment(payment.id);
+                                            setEditingPaymentId(null);
+                                          }
+                                        }}
+                                        className="bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded px-2.5 py-1.5 text-[10px] font-bold cursor-pointer transition-colors"
+                                      >
+                                        رد فیش
+                                      </button>
+                                    </div>
+                                  ) : payment ? (
+                                    <div className="flex gap-2">
+                                      <button
+                                        onClick={() => {
+                                          if (onUpdatePaymentDate) {
+                                            onUpdatePaymentDate(payment.id, editingPaymentDay);
+                                          }
+                                          setEditingPaymentId(null);
+                                        }}
+                                        className="flex-1 bg-teal-800 hover:bg-teal-900 text-white rounded py-1.5 text-[10px] font-extrabold cursor-pointer transition-colors"
+                                      >
+                                        💾 ذخیره تاریخ اصلاح‌شده
+                                      </button>
+                                      <button
+                                        onClick={() => {
+                                          if (confirm("آیا از لغو و حذف کامل این واریزی اطمینان دارید؟")) {
+                                            if (onRejectPayment) onRejectPayment(payment.id);
+                                            setEditingPaymentId(null);
+                                          }
+                                        }}
+                                        className="bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded px-2 py-1.5 text-[10px] font-bold cursor-pointer"
+                                      >
+                                        حذف واریزی
+                                      </button>
+                                    </div>
+                                  ) : null}
+                                  
+                                  <button
+                                    onClick={() => setEditingPaymentId(null)}
+                                    className="w-full bg-slate-100 hover:bg-slate-200 text-slate-600 rounded py-1 text-[10px] font-bold cursor-pointer transition-colors"
+                                  >
+                                    انصراف
+                                  </button>
+                                </div>
+                              </div>
+                            ) : isPending && payment ? (
+                              /* Case: Member submitted pending receipt */
+                              <div className="flex items-center gap-1.5">
                                 <button
                                   onClick={() => {
-                                    setRecordingPaymentForMemberId(member.id);
-                                    setPaymentDayInput(1); // default to superb day 1 (early)
+                                    setEditingPaymentId(payment.id);
+                                    setEditingPaymentDay(payment.paymentDayShamsi);
+                                    setIsReviewingPending(true);
                                   }}
-                                  className="py-1 px-3 bg-teal-800 hover:bg-teal-900 text-white font-extrabold rounded text-[11px] shadow-sm transition-all cursor-pointer"
+                                  className="py-1 px-3 bg-amber-600 hover:bg-amber-700 text-white font-extrabold rounded text-[11px] shadow-sm transition-all cursor-pointer flex items-center gap-1 animate-bounce"
+                                  style={{ animationDuration: "2s" }}
                                 >
-                                  ثبت فیش واریز
+                                  <Check className="w-3.5 h-3.5" />
+                                  <span>بررسی و تایید فیش</span>
                                 </button>
-                              )}
-                            </div>
-                          )}
+                              </div>
+                            ) : isPaid && payment ? (
+                              /* Case: Payment is already paid, allow admin to edit date */
+                              <div className="flex items-center gap-1.5">
+                                <button
+                                  onClick={() => {
+                                    setEditingPaymentId(payment.id);
+                                    setEditingPaymentDay(payment.paymentDayShamsi);
+                                    setIsReviewingPending(false);
+                                  }}
+                                  className="py-1 px-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded text-[10px] border border-slate-300 transition-all cursor-pointer flex items-center gap-1"
+                                >
+                                  <Edit2 className="w-3 h-3 text-slate-500" />
+                                  <span>تغییر تاریخ</span>
+                                </button>
+                              </div>
+                            ) : (
+                              /* Case: Member has not paid yet -> direct record */
+                              <div>
+                                {recordingPaymentForMemberId === member.id ? (
+                                  <div className="bg-slate-50 p-3 rounded-lg border border-slate-300 flex flex-col gap-3 min-w-[280px] max-w-sm text-right shadow-sm">
+                                    <div className="flex justify-between items-center pb-1.5 border-b border-slate-200">
+                                      <span className="text-[10px] font-bold text-slate-500">تاریخ ثبت فیش توسط ادمین:</span>
+                                      <span className="text-[10px] font-black text-slate-400 bg-white border border-slate-200 px-1.5 py-0.5 rounded font-mono">
+                                        روز {toPersianDigits(paymentDayInput)} از ۳۰/۳۱
+                                      </span>
+                                    </div>
+
+                                    {/* Graphical Shamsi Calendar Grid Selector */}
+                                    <div className="space-y-1.5">
+                                      <label className="text-[9px] font-bold text-slate-500 block">روز پرداخت را روی تقویم کلیک کنید:</label>
+                                      <div className="grid grid-cols-7 gap-1 text-center bg-white p-2 rounded-lg border border-slate-150 shadow-inner font-sans">
+                                        {["ش", "ی", "د", "س", "چ", "پ", "ج"].map((w, index) => (
+                                          <span key={index} className="text-[9px] text-slate-400 font-bold py-0.5">{w}</span>
+                                        ))}
+                                        {Array.from({ length: (settings.currentMonthIndex <= 5 ? 31 : (settings.currentMonthIndex <= 10 ? 30 : 29)) }, (_, idx) => {
+                                          const dayNum = idx + 1;
+                                          const isSelected = paymentDayInput === dayNum;
+                                          const isEarly = dayNum <= settings.lotteryDayOfMonth;
+                                          return (
+                                            <button
+                                              key={dayNum}
+                                              type="button"
+                                              onClick={() => setPaymentDayInput(dayNum)}
+                                              className={`h-7 rounded text-[11px] font-mono font-bold transition-all flex flex-col items-center justify-center cursor-pointer ${
+                                                isSelected 
+                                                  ? "bg-teal-700 text-white font-black scale-105 shadow-sm border border-teal-800"
+                                                  : isEarly
+                                                    ? "bg-emerald-100 hover:bg-emerald-200 text-emerald-800 border border-emerald-200"
+                                                    : "bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-100"
+                                              }`}
+                                              title={isEarly ? `تعجیل خوش‌حسابی (روز ${dayNum})` : `تاخیر دیرکرد (روز ${dayNum})`}
+                                            >
+                                              <span>{toPersianDigits(dayNum)}</span>
+                                            </button>
+                                          );
+                                        })}
+                                      </div>
+                                    </div>
+
+                                    <div className="flex justify-between items-center text-[10px]">
+                                      <span className="text-slate-500">تاثیر ارزش امتیاز خوش‌حسابی:</span>
+                                      {member.hasWon ? (
+                                        <span className="font-bold text-teal-700">۰ امتیاز (معاف - برنده تسهیلات)</span>
+                                      ) : (
+                                        <span className={`font-bold font-mono ${calculatePaymentScore(paymentDayInput, totalAmountToCalculateScore, settings.lotteryDayOfMonth).score >= 0 ? 'text-teal-650' : 'text-rose-500'}`}>
+                                          {calculatePaymentScore(paymentDayInput, totalAmountToCalculateScore, settings.lotteryDayOfMonth).score >= 0 ? '+' : ''}
+                                          {toPersianDigits(new Intl.NumberFormat("en-US").format(calculatePaymentScore(paymentDayInput, totalAmountToCalculateScore, settings.lotteryDayOfMonth).score))}
+                                        </span>
+                                      )}
+                                    </div>
+
+                                    <div className="flex gap-2 pt-1.5 border-t border-slate-200">
+                                      <button
+                                        onClick={() => {
+                                          onRecordPayment(member.id, paymentDayInput);
+                                          setRecordingPaymentForMemberId(null);
+                                        }}
+                                        className="flex-1 bg-teal-800 hover:bg-teal-905 text-white rounded py-1.5 text-[10px] font-extrabold cursor-pointer transition-colors"
+                                      >
+                                        تایید نهایی و ثبت
+                                      </button>
+                                      <button
+                                        onClick={() => setRecordingPaymentForMemberId(null)}
+                                        className="bg-slate-100 hover:bg-slate-200 text-slate-500 rounded px-2.5 py-1.5 text-[10px] font-bold cursor-pointer transition-colors"
+                                      >
+                                        لغو
+                                      </button>
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <button
+                                    onClick={() => {
+                                      setRecordingPaymentForMemberId(member.id);
+                                      setPaymentDayInput(1); // default to superb day 1 (early)
+                                    }}
+                                    className="py-1 px-3 bg-teal-800 hover:bg-teal-900 text-white font-extrabold rounded text-[11px] shadow-sm transition-all cursor-pointer"
+                                  >
+                                    ثبت مستقیم توسط ادمین
+                                  </button>
+                                )}
+                              </div>
+                            )}
+                          </div>
                         </td>
                       </tr>
                     );
