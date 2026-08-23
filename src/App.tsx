@@ -820,7 +820,7 @@ export default function App() {
       <div className="h-1.5 bg-teal-800 w-full" />
 
       {/* Primary Header Card with brand & stats */}
-      <header className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 pb-2" id="app-header">
+      <header className="w-full max-w-[1640px] mx-auto px-4 sm:px-6 lg:px-8 pt-6 pb-2" id="app-header">
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 flex flex-col md:flex-row justify-between items-center gap-6">
           <div className="flex items-center gap-4 text-center md:text-right">
             <div className="w-14 h-14 rounded-xl bg-teal-900 text-white flex items-center justify-center shadow-lg shadow-teal-900/10 overflow-hidden border border-teal-800 shrink-0">
@@ -890,7 +890,7 @@ export default function App() {
       </header>
 
       {/* Main Container Area */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+      <main className="w-full max-w-[1640px] mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
         
         {/* Row 1: Shared Core Overview / Dashboard (Visible to both profiles to maintain financial clarity) */}
         <section className="space-y-3" id="shared-dashboard">

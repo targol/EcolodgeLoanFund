@@ -1301,7 +1301,7 @@ export default function AdminPanel({
                     هیچ فولدری یا پرونده‌ای با مشخصات این فیلتر منطبق نیست.
                   </div>
                 ) : (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-[460px] overflow-y-auto pr-1">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-h-[800px] overflow-y-auto pr-1">
                     {filteredMembers.map((member) => {
                       const isMemberActive = member.isActive !== false && (!activeCycle?.memberIds || activeCycle.memberIds.includes(member.id));
                       return (
@@ -1309,24 +1309,28 @@ export default function AdminPanel({
                         key={member.id} 
                         className={`p-4 rounded-xl border bg-white transition-all shadow-sm flex flex-col justify-between gap-3 ${
                           !isMemberActive 
-                            ? "border-slate-300 bg-slate-50/70 opacity-90" 
+                            ? "border-slate-300 bg-slate-50/80 ring-1 ring-slate-200" 
                             : member.hasWon 
-                              ? "border-teal-100 bg-teal-50/10" 
-                              : "border-slate-205"
+                              ? "border-teal-200 bg-teal-50/15 ring-1 ring-teal-100" 
+                              : "border-slate-200 hover:border-teal-300"
                         }`}
                       >
-                        {/* Member Active Status & Cycle Toggle Toolbar */}
-                        <div className="flex items-center justify-between gap-2 pb-2.5 border-b border-slate-100">
+                        {/* Member Active Status & Cycle Toggle Toolbar Banner */}
+                        <div className={`p-2.5 rounded-lg flex items-center justify-between gap-2 border transition-all ${
+                          isMemberActive 
+                            ? "bg-emerald-50/90 border-emerald-200 shadow-2xs" 
+                            : "bg-rose-50/90 border-rose-200 shadow-2xs"
+                        }`}>
                           <div className="flex items-center gap-1.5">
                             {isMemberActive ? (
-                              <span className="bg-emerald-50 text-emerald-800 text-[10px] px-2 py-0.5 rounded-full font-black border border-emerald-200 flex items-center gap-1">
-                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                                فعال در دوره {toPersianDigits(activeCycle?.cycleNumber || 3)}
+                              <span className="text-[11px] font-black text-emerald-950 flex items-center gap-1.5">
+                                <span className="w-2.5 h-2.5 rounded-full bg-emerald-600 ring-2 ring-emerald-300 animate-pulse"></span>
+                                وضعیت: <span className="text-emerald-800 font-extrabold">فعال در دوره {toPersianDigits(activeCycle?.cycleNumber || 3)}</span>
                               </span>
                             ) : (
-                              <span className="bg-slate-100 text-slate-500 text-[10px] px-2 py-0.5 rounded-full font-bold border border-slate-200 flex items-center gap-1">
-                                <span className="w-1.5 h-1.5 rounded-full bg-slate-400"></span>
-                                غیرفعال / خارج از دوره جاری
+                              <span className="text-[11px] font-black text-rose-950 flex items-center gap-1.5">
+                                <span className="w-2.5 h-2.5 rounded-full bg-rose-500 ring-2 ring-rose-200"></span>
+                                وضعیت: <span className="text-rose-700 font-extrabold">غیرفعال در دوره جاری</span>
                               </span>
                             )}
                           </div>
@@ -1334,10 +1338,10 @@ export default function AdminPanel({
                           <button
                             type="button"
                             onClick={() => handleToggleMemberActive(member)}
-                            className={`text-[10px] px-2.5 py-0.5 rounded-md font-bold transition-all cursor-pointer border shadow-2xs ${
+                            className={`text-[11px] px-3 py-1 rounded-md font-black transition-all cursor-pointer border shadow-sm ${
                               isMemberActive
-                                ? "bg-white hover:bg-rose-50 text-slate-600 hover:text-rose-700 border-slate-200 hover:border-rose-200"
-                                : "bg-emerald-700 hover:bg-emerald-800 text-white border-emerald-700 font-black"
+                                ? "bg-white hover:bg-rose-100 text-rose-700 hover:text-rose-800 border-rose-200 hover:border-rose-300"
+                                : "bg-emerald-700 hover:bg-emerald-800 text-white border-emerald-800"
                             }`}
                             title={isMemberActive ? "غیرفعال کردن این عضو در دوره جاری" : "فعال کردن این عضو در دوره جاری"}
                           >
