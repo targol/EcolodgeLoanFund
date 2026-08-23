@@ -71,7 +71,7 @@ export default function App() {
 
   // Initialize state from localStorage or load high fidelity mock data + check Cloudflare
   useEffect(() => {
-    const CURRENT_VERSION = "v7.0_founding_members_and_cycle_shares_sync";
+    const CURRENT_VERSION = "v8.1_shahrivar_winner_radkan";
     const savedVersion = localStorage.getItem("mehr_fund_db_version");
     
     // If version changed, preserve telegram settings if user already configured them
@@ -130,14 +130,80 @@ export default function App() {
         if (l.winnerName.includes("زینب سالار") && !l.winnerName.includes("زینب سالاری")) {
           return { ...l, winnerName: l.winnerName.replace("زینب سالار", "زینب سالاری") };
         }
+        if (l.monthName.includes("شهریور ۱۴۰۵")) {
+          return {
+            ...l,
+            winnerId: "mem_3",
+            winnerName: "صادق کاظمیان - ارگ رادکان"
+          };
+        }
         return l;
       });
+
+      // Synchronize Shahrivar 1405 winner if missing
+      const hasShahrivar = parsedLotteries.some(l => l.monthName.includes("شهریور ۱۴۰۵"));
+      if (!hasShahrivar) {
+        parsedLotteries.push({
+          id: "lot_4_shahrivar",
+          monthName: "شهریور ۱۴۰۵",
+          winnerId: "mem_3",
+          winnerName: "صادق کاظمیان - ارگ رادکان",
+          drawDateShamsi: "۱۴۰۵/۰۶/۰۳",
+          totalPoolAmount: 55000000,
+          drawMethod: "manual",
+          participantsCount: 7,
+          loanType: "main",
+          cycleNumber: 3
+        });
+      }
+
+      // Ensure member win statuses are accurate
+      parsedMembers = parsedMembers.map(m => {
+        if (m.id === "mem_3" || m.name.includes("رادکان")) {
+          return {
+            ...m,
+            hasWon: true,
+            winMonth: "شهریور ۱۴۰۵",
+            isAppliedForLoan: false
+          };
+        }
+        if ((m.id === "mem_1" || m.name.includes("برزک")) && m.winMonth === "شهریور ۱۴۰۵") {
+          return {
+            ...m,
+            hasWon: false,
+            winMonth: null,
+            isAppliedForLoan: true
+          };
+        }
+        return m;
+      });
+
+      // Add Shahrivar 1405 payments if missing
+      const hasShahrivarPayments = parsedPayments.some(p => p.monthName === "شهریور ۱۴۰۵");
+      if (!hasShahrivarPayments) {
+        const defaultShahrivarPayments: Payment[] = [
+          { id: "p_6_1", memberId: "mem_1", monthName: "شهریور ۱۴۰۵", amount: 5500000, savingsAmount: 500000, paymentDayShamsi: 1, paymentDateShamsi: "۱۴۰۵/۰۶/۰۱", scoreDelta: 0, status: "paid" },
+          { id: "p_6_2", memberId: "mem_2", monthName: "شهریور ۱۴۰۵", amount: 5500000, savingsAmount: 500000, paymentDayShamsi: 2, paymentDateShamsi: "۱۴۰۵/۰۶/۰۲", scoreDelta: 180, status: "paid" },
+          { id: "p_6_3", memberId: "mem_3", monthName: "شهریور ۱۴۰۵", amount: 5500000, savingsAmount: 500000, paymentDayShamsi: 1, paymentDateShamsi: "۱۴۰۵/۰۶/۰۱", scoreDelta: 240, status: "paid" },
+          { id: "p_6_4", memberId: "mem_4", monthName: "شهریور ۱۴۰۵", amount: 5500000, savingsAmount: 500000, paymentDayShamsi: 3, paymentDateShamsi: "۱۴۰۵/۰۶/۰۳", scoreDelta: 120, status: "paid" },
+          { id: "p_6_5", memberId: "mem_5", monthName: "شهریور ۱۴۰۵", amount: 5500000, savingsAmount: 500000, paymentDayShamsi: 2, paymentDateShamsi: "۱۴۰۵/۰۶/۰۲", scoreDelta: 180, status: "paid" },
+          { id: "p_6_6", memberId: "mem_6", monthName: "شهریور ۱۴۰۵", amount: 5500000, savingsAmount: 500000, paymentDayShamsi: 3, paymentDateShamsi: "۱۴۰۵/۰۶/۰۳", scoreDelta: 120, status: "paid" },
+          { id: "p_6_7", memberId: "mem_7", monthName: "شهریور ۱۴۰۵", amount: 5500000, savingsAmount: 500000, paymentDayShamsi: 2, paymentDateShamsi: "۱۴۰۵/۰۶/۰۲", scoreDelta: 0, status: "paid" },
+          { id: "p_6_8", memberId: "mem_8", monthName: "شهریور ۱۴۰۵", amount: 5500000, savingsAmount: 500000, paymentDayShamsi: 4, paymentDateShamsi: "۱۴۰۵/۰۶/۰۴", scoreDelta: 60, status: "paid" },
+          { id: "p_6_9", memberId: "mem_9", monthName: "شهریور ۱۴۰۵", amount: 5500000, savingsAmount: 500000, paymentDayShamsi: 1, paymentDateShamsi: "۱۴۰۵/۰۶/۰۱", scoreDelta: 0, status: "paid" },
+          { id: "p_6_10", memberId: "mem_10", monthName: "شهریور ۱۴۰۵", amount: 5500000, savingsAmount: 500000, paymentDayShamsi: 2, paymentDateShamsi: "۱۴۰۵/۰۶/۰۲", scoreDelta: 0, status: "paid" }
+        ];
+        parsedPayments = [...parsedPayments, ...defaultShahrivarPayments];
+      }
 
       // Synchronize monthly amount & savings settings
       if (savedVersion !== CURRENT_VERSION) {
         parsedSettings.monthlyAmount = 5500000;
         parsedSettings.savingsAmount = 500000;
         parsedSettings.goldInvestmentNote = "ماهیانه ۵۰۰,۰۰۰ تومان از پرداخت هر عضو در صندوق طلا سرمایه‌گذاری می‌شود.";
+        if (parsedSettings.currentMonthIndex <= 5) {
+          parsedSettings.currentMonthIndex = 6; // Move accounting to Mehr 1405
+        }
       } else {
         if (!parsedSettings.savingsAmount) parsedSettings.savingsAmount = 500000;
         if (!parsedSettings.monthlyAmount || parsedSettings.monthlyAmount < 1000000) parsedSettings.monthlyAmount = 5500000;
@@ -153,10 +219,17 @@ export default function App() {
               currentSharesMap[mId] = memberObj?.currentCycleShares || 1;
             }
           });
+          const winners = (c.pastWinners || []).filter(w => !w.monthName.includes("شهریور ۱۴۰۵"));
+          winners.push({
+            monthName: "شهریور ۱۴۰۵",
+            winnerName: "صادق کاظمیان - ارگ رادکان"
+          });
           return {
             ...c,
             monthlyAmount: parsedSettings.monthlyAmount || 5500000,
             savingsAmount: parsedSettings.savingsAmount || 500000,
+            accumulatedSavingsPool: 20000000,
+            pastWinners: winners,
             memberShares: currentSharesMap
           };
         }
@@ -178,6 +251,7 @@ export default function App() {
 
       localStorage.setItem("mehr_fund_members", JSON.stringify(parsedMembers));
       localStorage.setItem("mehr_fund_lotteries", JSON.stringify(parsedLotteries));
+      localStorage.setItem("mehr_fund_payments", JSON.stringify(parsedPayments));
       localStorage.setItem("mehr_fund_settings", JSON.stringify(parsedSettings));
       localStorage.setItem("mehr_fund_cycles", JSON.stringify(parsedCycles));
     } else {
@@ -1040,6 +1114,7 @@ export default function App() {
               cycles={cycles}
               onRecordPayment={handleRecordPayment}
               onToggleApplyForLoan={handleToggleApplyForLoan}
+              onUpdateMember={handleUpdateMember}
             />
           )}
         </section>

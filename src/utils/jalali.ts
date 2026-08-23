@@ -214,8 +214,8 @@ export function getInitialMockData(): {
       password: "123",
       joinDateShamsi: "۱۴۰۳/۰۵/۰۱",
       score: 180,
-      hasWon: false,
-      winMonth: null,
+      hasWon: true,
+      winMonth: "شهریور ۱۴۰۵",
       avatarColor: "from-rose-500 to-pink-600",
       isAppliedForLoan: false,
       isAppliedForEmergency: false,
@@ -561,11 +561,12 @@ export function getInitialMockData(): {
       },
       notes: "دوره جاری با ۱۰ عضو و ۱۰ سهم: ۵.۵ میلیون تومان قسط اصلی + ۵۰۰ هزار تومان پس‌انداز ماهانه هر سهم (سرمایه‌گذاری در صندوق طلا)",
       goldInvestmentNote: "مبالغ پس‌انداز ماهانه (۵۰۰ هزار تومان در ماه به ازای هر سهم) در صندوق طلا سرمایه‌گذاری شده است. مبلغ نهایی پس‌انداز انباشته پس از پایان دوره و محاسبه ارزش روز مشخص و در مورد نحوه انتقال به دوره‌های بعدی تصمیم‌گیری خواهد شد.",
-      accumulatedSavingsPool: 15000000,
+      accumulatedSavingsPool: 20000000,
       pastWinners: [
         { monthName: "خرداد ۱۴۰۵", winnerName: "عبدالعلی ابراهیمی - خورشید سرخان جم" },
         { monthName: "تیر ۱۴۰۵", winnerName: "نگار و عادل - راهنما" },
-        { monthName: "مرداد ۱۴۰۵", winnerName: "زینب سالاری - گوهران" }
+        { monthName: "مرداد ۱۴۰۵", winnerName: "زینب سالاری - گوهران" },
+        { monthName: "شهریور ۱۴۰۵", winnerName: "صادق کاظمیان - ارگ رادکان" }
       ]
     }
   ];
@@ -606,6 +607,18 @@ export function getInitialMockData(): {
       participantsCount: 8,
       loanType: "main",
       cycleNumber: 3
+    },
+    {
+      id: "lot_4",
+      monthName: "شهریور ۱۴۰۵",
+      winnerId: "mem_3",
+      winnerName: "صادق کاظمیان - ارگ رادکان",
+      drawDateShamsi: "۱۴۰۵/۰۶/۰۳",
+      totalPoolAmount: 55000000,
+      drawMethod: "manual",
+      participantsCount: 7,
+      loanType: "main",
+      cycleNumber: 3
     }
   ];
 
@@ -644,7 +657,19 @@ export function getInitialMockData(): {
     { id: "p_5_7", memberId: "mem_5", monthName: "مرداد ۱۴۰۵", amount: 5500000, savingsAmount: 500000, paymentDayShamsi: 1, paymentDateShamsi: "۱۴۰۵/۰۵/۰۱", scoreDelta: 240, status: "paid" },
     { id: "p_5_8", memberId: "mem_6", monthName: "مرداد ۱۴۰۵", amount: 5500000, savingsAmount: 500000, paymentDayShamsi: 1, paymentDateShamsi: "۱۴۰۵/۰۵/۰۱", scoreDelta: 240, status: "paid" },
     { id: "p_5_9", memberId: "mem_8", monthName: "مرداد ۱۴۰۵", amount: 5500000, savingsAmount: 500000, paymentDayShamsi: 10, paymentDateShamsi: "۱۴۰۵/۰۵/۱۰", scoreDelta: -300, status: "paid" },
-    { id: "p_5_10", memberId: "mem_10", monthName: "مرداد ۱۴۰۵", amount: 5500000, savingsAmount: 500000, paymentDayShamsi: 1, paymentDateShamsi: "۱۴۰۵/۰۵/۰۱", scoreDelta: 0, status: "paid" }
+    { id: "p_5_10", memberId: "mem_10", monthName: "مرداد ۱۴۰۵", amount: 5500000, savingsAmount: 500000, paymentDayShamsi: 1, paymentDateShamsi: "۱۴۰۵/۰۵/۰۱", scoreDelta: 0, status: "paid" },
+
+    // --- Shahrivar 1405 Payments ---
+    { id: "p_6_1", memberId: "mem_1", monthName: "شهریور ۱۴۰۵", amount: 5500000, savingsAmount: 500000, paymentDayShamsi: 1, paymentDateShamsi: "۱۴۰۵/۰۶/۰۱", scoreDelta: 0, status: "paid" },
+    { id: "p_6_2", memberId: "mem_2", monthName: "شهریور ۱۴۰۵", amount: 5500000, savingsAmount: 500000, paymentDayShamsi: 2, paymentDateShamsi: "۱۴۰۵/۰۶/۰۲", scoreDelta: 180, status: "paid" },
+    { id: "p_6_3", memberId: "mem_3", monthName: "شهریور ۱۴۰۵", amount: 5500000, savingsAmount: 500000, paymentDayShamsi: 1, paymentDateShamsi: "۱۴۰۵/۰۶/۰۱", scoreDelta: 240, status: "paid" },
+    { id: "p_6_4", memberId: "mem_4", monthName: "شهریور ۱۴۰۵", amount: 5500000, savingsAmount: 500000, paymentDayShamsi: 3, paymentDateShamsi: "۱۴۰۵/۰۶/۰۳", scoreDelta: 120, status: "paid" },
+    { id: "p_6_5", memberId: "mem_5", monthName: "شهریور ۱۴۰۵", amount: 5500000, savingsAmount: 500000, paymentDayShamsi: 2, paymentDateShamsi: "۱۴۰۵/۰۶/۰۲", scoreDelta: 180, status: "paid" },
+    { id: "p_6_6", memberId: "mem_6", monthName: "شهریور ۱۴۰۵", amount: 5500000, savingsAmount: 500000, paymentDayShamsi: 3, paymentDateShamsi: "۱۴۰۵/۰۶/۰۳", scoreDelta: 120, status: "paid" },
+    { id: "p_6_7", memberId: "mem_7", monthName: "شهریور ۱۴۰۵", amount: 5500000, savingsAmount: 500000, paymentDayShamsi: 2, paymentDateShamsi: "۱۴۰۵/۰۶/۰۲", scoreDelta: 0, status: "paid" },
+    { id: "p_6_8", memberId: "mem_8", monthName: "شهریور ۱۴۰۵", amount: 5500000, savingsAmount: 500000, paymentDayShamsi: 4, paymentDateShamsi: "۱۴۰۵/۰۶/۰۴", scoreDelta: 60, status: "paid" },
+    { id: "p_6_9", memberId: "mem_9", monthName: "شهریور ۱۴۰۵", amount: 5500000, savingsAmount: 500000, paymentDayShamsi: 1, paymentDateShamsi: "۱۴۰۵/۰۶/۰۱", scoreDelta: 0, status: "paid" },
+    { id: "p_6_10", memberId: "mem_10", monthName: "شهریور ۱۴۰۵", amount: 5500000, savingsAmount: 500000, paymentDayShamsi: 2, paymentDateShamsi: "۱۴۰۵/۰۶/۰۲", scoreDelta: 0, status: "paid" }
   ];
 
   return { members, payments, lotteries, settings, cycles };

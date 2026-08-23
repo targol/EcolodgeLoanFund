@@ -14,6 +14,7 @@ interface MemberPanelProps {
   cycles?: FundCycle[];
   onRecordPayment: (memberId: string, day: number, options?: { asPending?: boolean; receiptNote?: string }) => void;
   onToggleApplyForLoan: (memberId: string, type: "main" | "emergency") => void;
+  onUpdateMember?: (id: string, updatedFields: Partial<Member>) => void;
 }
 
 export default function MemberPanel({
@@ -22,7 +23,8 @@ export default function MemberPanel({
   settings,
   cycles = [],
   onRecordPayment,
-  onToggleApplyForLoan
+  onToggleApplyForLoan,
+  onUpdateMember
 }: MemberPanelProps) {
   // Active cycle determination
   const activeCycle = cycles.find(c => c.status === "active") || cycles[cycles.length - 1];
@@ -35,6 +37,14 @@ export default function MemberPanel({
   const [selectedLoginMemberId, setSelectedLoginMemberId] = useState<string>(members[0]?.id || "");
   const [typedPassword, setTypedPassword] = useState("");
   const [loginError, setLoginError] = useState("");
+
+  // Password Change Modal State
+  const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
+  const [currentPasswordInput, setCurrentPasswordInput] = useState("");
+  const [newPasswordInput, setNewPasswordInput] = useState("");
+  const [confirmPasswordInput, setConfirmPasswordInput] = useState("");
+  const [passwordChangeError, setPasswordChangeError] = useState("");
+  const [passwordChangeSuccess, setPasswordChangeSuccess] = useState("");
 
   const [simulatedDay, setSimulatedDay] = useState<number>(3); // Default to day 3 payment
   const [receiptNoteInput, setReceiptNoteInput] = useState<string>("");
@@ -69,9 +79,13 @@ export default function MemberPanel({
     const memberPass = (targetMember.password || "123").trim();
     const inputPass = typedPassword.trim();
 
-    // Allow empty password to default to 123 for seamless demo use or match password
-    if (inputPass && inputPass !== memberPass) {
-      setLoginError("رمز عبور وارد شده نادرست است (رمز پیش‌فرض: 123).");
+    if (!inputPass) {
+      setLoginError("لطفاً کلمه عبور حساب کاربری خود را وارد فرمایید.");
+      return;
+    }
+
+    if (inputPass !== memberPass) {
+      setLoginError("کلمه عبور وارد شده نادرست است (رمز پیش‌فرض: 123).");
       return;
     }
 
@@ -80,11 +94,42 @@ export default function MemberPanel({
     setTypedPassword("");
   };
 
-  const handleQuickLoginAs = (memberId: string) => {
-    setSessionMemberId(memberId);
-    setSelectedLoginMemberId(memberId);
-    setLoginError("");
-    setTypedPassword("");
+  const handleChangePassword = (e: React.FormEvent) => {
+    e.preventDefault();
+    setPasswordChangeError("");
+    setPasswordChangeSuccess("");
+
+    const activeMember = members.find(m => m.id === sessionMemberId);
+    if (!activeMember) return;
+
+    const actualPass = (activeMember.password || "123").trim();
+    if (currentPasswordInput.trim() !== actualPass) {
+      setPasswordChangeError("کلمه عبور فعلی وارد شده نادرست است.");
+      return;
+    }
+
+    if (!newPasswordInput.trim() || newPasswordInput.trim().length < 3) {
+      setPasswordChangeError("کلمه عبور جدید باید حداقل ۳ کاراکتر باشد.");
+      return;
+    }
+
+    if (newPasswordInput.trim() !== confirmPasswordInput.trim()) {
+      setPasswordChangeError("کلمه عبور جدید با تکرار آن مطابقت ندارد.");
+      return;
+    }
+
+    if (onUpdateMember) {
+      onUpdateMember(activeMember.id, { password: newPasswordInput.trim() });
+    }
+
+    setPasswordChangeSuccess("کلمه عبور شما با موفقیت به‌روزرسانی و ذخیره شد.");
+    setCurrentPasswordInput("");
+    setNewPasswordInput("");
+    setConfirmPasswordInput("");
+    setTimeout(() => {
+      setIsPasswordModalOpen(false);
+      setPasswordChangeSuccess("");
+    }, 1800);
   };
 
   const handleLogout = () => {
@@ -107,7 +152,7 @@ export default function MemberPanel({
     );
   }
 
-  // CASE 1: NOT AUTHENTICATED -> Render clean login form
+  // CASE 1: NOT AUTHENTICATED -> Render clean login form with strict password protection
   if (!sessionMemberId || !members.some(m => m.id === sessionMemberId)) {
     return (
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden max-w-lg mx-auto my-4 font-sans" id="member-login-card">
@@ -122,10 +167,10 @@ export default function MemberPanel({
           <p className="text-[10px] text-slate-450 mt-1">تعهدات فردی، درخواست تسهیلات و ثبت فیش‌های واریزی ماهیانه</p>
         </div>
 
-        {/* Quick Member Selection Chips */}
+        {/* Member Selector chips to quickly select in dropdown */}
         <div className="p-4 bg-teal-50/30 border-b border-slate-150">
           <label className="block text-[10px] font-bold text-teal-900 mb-2 text-right">
-            ⚡️ دسترسی و ورود مستقیم با یک کلیک به عنوان اقامتگاه:
+            انتخاب سریع اقامتگاه / عضو:
           </label>
           <div className="flex flex-wrap gap-1.5 justify-start max-h-36 overflow-y-auto p-1">
             {members.map(m => {
@@ -134,13 +179,16 @@ export default function MemberPanel({
                 <button
                   key={m.id}
                   type="button"
-                  onClick={() => handleQuickLoginAs(m.id)}
+                  onClick={() => {
+                    setSelectedLoginMemberId(m.id);
+                    setLoginError("");
+                  }}
                   className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all flex items-center gap-1 cursor-pointer border ${
                     isSelected 
                       ? "bg-teal-800 text-white border-teal-900 shadow-sm font-black scale-102"
                       : "bg-white text-slate-700 hover:bg-teal-50 hover:text-teal-900 border-slate-200"
                   }`}
-                  title={`ورود فوری به حساب ${m.name}`}
+                  title={`انتخاب ${m.name}`}
                 >
                   <span>{m.isFoundingMember ? "⭐️" : "🏡"}</span>
                   <span>{m.name.includes("-") ? m.name.split("-")[1].trim() : m.name}</span>
@@ -192,30 +240,25 @@ export default function MemberPanel({
           <div>
             <div className="flex justify-between items-center mb-1">
               <label className="block text-[11px] font-bold text-slate-700">کلمه عبور حساب کاربری:</label>
-              <span className="text-[10px] text-teal-700 font-bold">رمز پیش‌فرض دمو: 123</span>
+              <span className="text-[10px] text-teal-700 font-bold">رمز پیش‌فرض اولیه: 123</span>
             </div>
             <input
               type="password"
-              placeholder="رمز عبور (مثال: 123)"
+              placeholder="رمز عبور حساب (الزامی)"
               value={typedPassword}
               onChange={(e) => { setTypedPassword(e.target.value); setLoginError(""); }}
               className="w-full p-2.5 bg-white border border-slate-200 rounded text-xs text-slate-800 focus:outline-none focus:border-teal-700 font-bold"
+              required
             />
           </div>
 
-          <div className="flex gap-2 pt-2">
+          <div className="pt-2">
             <button
               type="submit"
-              className="flex-1 py-2.5 bg-teal-800 hover:bg-teal-900 text-white font-black rounded text-xs transition-colors cursor-pointer shadow-sm"
+              className="w-full py-2.5 bg-teal-800 hover:bg-teal-900 text-white font-black rounded text-xs transition-colors cursor-pointer shadow-sm flex items-center justify-center gap-1.5"
             >
-              ورود به حساب کاربری
-            </button>
-            <button
-              type="button"
-              onClick={() => handleQuickLoginAs(effectiveSelectedMemberId)}
-              className="py-2.5 px-4 bg-teal-50 hover:bg-teal-100 text-teal-800 font-bold border border-teal-200 rounded text-xs transition-colors cursor-pointer"
-            >
-              ورود سریع (دمو)
+              <Key className="w-4 h-4 text-teal-200" />
+              <span>ورود امن به حساب کاربری</span>
             </button>
           </div>
         </form>
@@ -259,7 +302,7 @@ export default function MemberPanel({
 
   return (
     <div className="space-y-6" id="member-panel-root">
-      {/* Target Identity Panel with Logout */}
+      {/* Target Identity Panel with Change Password and Logout */}
       <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 flex flex-col sm:flex-row justify-between items-center gap-3">
         <div className="flex items-center gap-2.5">
           <div className="w-10 h-10 rounded-full bg-teal-850 text-white flex items-center justify-center font-bold text-xs animate-pulse">
@@ -271,14 +314,127 @@ export default function MemberPanel({
           </div>
         </div>
 
-        <button
-          onClick={handleLogout}
-          className="py-1.5 px-3 bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200 rounded text-[11px] font-bold transition-all flex items-center gap-1.5 cursor-pointer"
-        >
-          <LogOut className="w-3.5 h-3.5" />
-          <span>خروج از حساب</span>
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => {
+              setPasswordChangeError("");
+              setPasswordChangeSuccess("");
+              setCurrentPasswordInput("");
+              setNewPasswordInput("");
+              setConfirmPasswordInput("");
+              setIsPasswordModalOpen(true);
+            }}
+            className="py-1.5 px-3 bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 rounded text-[11px] font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs"
+          >
+            <Key className="w-3.5 h-3.5 text-teal-700" />
+            <span>تغییر کلمه عبور</span>
+          </button>
+
+          <button
+            onClick={handleLogout}
+            className="py-1.5 px-3 bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200 rounded text-[11px] font-bold transition-all flex items-center gap-1.5 cursor-pointer"
+          >
+            <LogOut className="w-3.5 h-3.5" />
+            <span>خروج از حساب</span>
+          </button>
+        </div>
       </div>
+
+      {/* Change Password Modal */}
+      {isPasswordModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4 animate-fadeIn">
+          <div className="bg-white rounded-2xl border border-slate-200 max-w-sm w-full p-6 shadow-2xl space-y-4 font-sans text-right">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-full bg-teal-50 text-teal-800 flex items-center justify-center border border-teal-150">
+                  <Key className="w-4 h-4" />
+                </div>
+                <h4 className="text-sm font-black text-slate-800">تغییر کلمه عبور حساب کاربری</h4>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsPasswordModalOpen(false)}
+                className="text-slate-400 hover:text-slate-600 cursor-pointer text-sm font-bold"
+              >
+                ✕
+              </button>
+            </div>
+
+            <p className="text-[11px] text-slate-500 leading-relaxed">
+              کاربر گرامی <b>{activeMember.name}</b>، برای حفظ امنیت، کلمه عبور جدیدی تعیین نمایید.
+            </p>
+
+            {passwordChangeError && (
+              <div className="p-2.5 bg-rose-50 border border-rose-200 rounded text-[11px] text-rose-700 font-bold flex items-center gap-1.5">
+                <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                <span>{passwordChangeError}</span>
+              </div>
+            )}
+
+            {passwordChangeSuccess && (
+              <div className="p-2.5 bg-emerald-50 border border-emerald-200 rounded text-[11px] text-emerald-700 font-bold flex items-center gap-1.5">
+                <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0" />
+                <span>{passwordChangeSuccess}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleChangePassword} className="space-y-3">
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 mb-1">کلمه عبور فعلی:</label>
+                <input
+                  type="password"
+                  placeholder="رمز عبور فعلی (پیش‌فرض: 123)"
+                  value={currentPasswordInput}
+                  onChange={(e) => setCurrentPasswordInput(e.target.value)}
+                  className="w-full p-2 bg-white border border-slate-300 rounded text-xs text-slate-850 focus:outline-none focus:border-teal-700 font-bold"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 mb-1">کلمه عبور جدید:</label>
+                <input
+                  type="password"
+                  placeholder="حداقل ۳ کاراکتر"
+                  value={newPasswordInput}
+                  onChange={(e) => setNewPasswordInput(e.target.value)}
+                  className="w-full p-2 bg-white border border-slate-300 rounded text-xs text-slate-850 focus:outline-none focus:border-teal-700 font-bold"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 mb-1">تکرار کلمه عبور جدید:</label>
+                <input
+                  type="password"
+                  placeholder="تکرار رمز عبور جدید"
+                  value={confirmPasswordInput}
+                  onChange={(e) => setConfirmPasswordInput(e.target.value)}
+                  className="w-full p-2 bg-white border border-slate-300 rounded text-xs text-slate-850 focus:outline-none focus:border-teal-700 font-bold"
+                  required
+                />
+              </div>
+
+              <div className="flex gap-2 pt-2">
+                <button
+                  type="submit"
+                  className="flex-1 py-2.5 bg-teal-800 hover:bg-teal-900 text-white font-black rounded text-xs transition-colors cursor-pointer shadow-sm"
+                >
+                  ثبت و ذخیره کلمه عبور جدید
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsPasswordModalOpen(false)}
+                  className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold rounded text-xs cursor-pointer"
+                >
+                  انصراف
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* Grid containing profile status & payment workspace */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
