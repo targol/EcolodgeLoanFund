@@ -37,32 +37,56 @@ export default function CycleManager({
   const [isCloseCycleModalOpen, setIsCloseCycleModalOpen] = useState(false);
   const [viewMode, setViewMode] = useState<"detail" | "matrix" | "gold_tracker">("detail");
 
-  // Admin Gold Valuation Live Input States
+  // Admin Gold Valuation Live Input States (Principal + Profit = Total Value)
+  const [goldProfitInput, setGoldProfitInput] = useState<string>(
+    (settings.goldFundProfitToman !== undefined ? settings.goldFundProfitToman : 3500000).toString()
+  );
   const [goldValueInput, setGoldValueInput] = useState<string>(
-    (settings.goldFundValueToman || 18500000).toString()
+    (settings.goldFundValueToman || 23500000).toString()
   );
   const [goldNoteInput, setGoldNoteInput] = useState<string>(
-    settings.goldInvestmentNote || "مبالغ پس‌انداز ماهانه در صندوق طلا سرمایه‌گذاری شده و ارزش روز آن در پایان دوره تعیین خواهد شد."
+    settings.goldInvestmentNote || "مبالغ پس‌انداز ماهانه (۵ میلیون تومان در ماه با تکمیل فیش‌ها) در صندوق طلا سرمایه‌گذاری شده و سود و ارزش روز آن در پایان دوره تعیین خواهد شد."
   );
   const [goldSaveSuccess, setGoldSaveSuccess] = useState(false);
 
   useEffect(() => {
-    setGoldValueInput((settings.goldFundValueToman || 18500000).toString());
+    if (settings.goldFundProfitToman !== undefined) {
+      setGoldProfitInput(settings.goldFundProfitToman.toString());
+    }
+    setGoldValueInput((settings.goldFundValueToman || 23500000).toString());
     setGoldNoteInput(
-      settings.goldInvestmentNote || "مبالغ پس‌انداز ماهانه در صندوق طلا سرمایه‌گذاری شده و ارزش روز آن در پایان دوره تعیین خواهد شد."
+      settings.goldInvestmentNote || "مبالغ پس‌انداز ماهانه (۵ میلیون تومان در ماه با تکمیل فیش‌ها) در صندوق طلا سرمایه‌گذاری شده و سود و ارزش روز آن در پایان دوره تعیین خواهد شد."
     );
-  }, [settings.goldFundValueToman, settings.goldInvestmentNote]);
+  }, [settings.goldFundValueToman, settings.goldFundProfitToman, settings.goldInvestmentNote]);
+
+  const handleProfitInputChange = (profitVal: string, principal: number) => {
+    setGoldProfitInput(profitVal);
+    const pNum = Number(profitVal);
+    if (!isNaN(pNum)) {
+      setGoldValueInput((principal + pNum).toString());
+    }
+  };
+
+  const handleTotalValueInputChange = (totalVal: string, principal: number) => {
+    setGoldValueInput(totalVal);
+    const tNum = Number(totalVal);
+    if (!isNaN(tNum)) {
+      setGoldProfitInput((Math.max(0, tNum - principal)).toString());
+    }
+  };
 
   const handleSaveGoldValuation = (e: React.FormEvent) => {
     e.preventDefault();
-    const numericVal = Number(goldValueInput);
-    if (isNaN(numericVal) || numericVal < 0) {
-      alert("لطفاً یک رقم معتبر برای ارزش روز طلا وارد کنید.");
+    const numericProfit = Number(goldProfitInput);
+    const numericTotal = Number(goldValueInput);
+    if (isNaN(numericProfit) || isNaN(numericTotal)) {
+      alert("لطفاً مقادیر عددی معتبر برای سود و ارزش کل دارایی طلا وارد کنید.");
       return;
     }
     if (onUpdateSettings) {
       onUpdateSettings({
-        goldFundValueToman: numericVal,
+        goldFundProfitToman: numericProfit,
+        goldFundValueToman: numericTotal,
         goldInvestmentNote: goldNoteInput
       });
       setGoldSaveSuccess(true);
@@ -232,18 +256,25 @@ export default function CycleManager({
   // Calculate total shares for current cycle
   const totalShares = currentCycle?.memberIds.reduce((sum, mId) => {
     return sum + (currentCycle.memberShares?.[mId] || 1);
-  }, 0) || currentCycle?.memberIds.length || 0;
+  }, 0) || currentCycle?.memberIds.length || 10;
 
-  // Calculate total savings deposits from paid payments
+  // Calculate total savings deposits from paid payments (5M Toman per completed month of 10 shares)
   const totalSavingsDeposited = payments
-    .filter(p => p.status === "paid")
+    .filter(p => p.status === "paid" && (!currentCycle || currentCycle.memberIds.includes(p.memberId)))
     .reduce((sum, p) => sum + (p.savingsAmount || 0), 0);
 
-  const currentGoldFundValuation = Number(goldValueInput) || settings.goldFundValueToman || 18500000;
-  const baseSavingsDeposits = totalSavingsDeposited > 0 ? totalSavingsDeposited : 16500000;
-  const goldProfitToman = currentGoldFundValuation - baseSavingsDeposits;
-  const goldGrowthRatePercent = ((goldProfitToman / baseSavingsDeposits) * 100).toFixed(1);
-  const goldValuePerShare = Math.round(currentGoldFundValuation / (totalShares || 11));
+  const baseSavingsDeposits = totalSavingsDeposited > 0 ? totalSavingsDeposited : 20000000;
+  const currentGoldProfit = Number(goldProfitInput) !== undefined && !isNaN(Number(goldProfitInput))
+    ? Number(goldProfitInput)
+    : (settings.goldFundProfitToman ?? 3500000);
+  const currentGoldFundValuation = baseSavingsDeposits + currentGoldProfit;
+  const goldProfitToman = currentGoldProfit;
+  const goldGrowthRatePercent = baseSavingsDeposits > 0 
+    ? ((goldProfitToman / baseSavingsDeposits) * 100).toFixed(1)
+    : "0";
+  const goldPrincipalPerShare = Math.round(baseSavingsDeposits / (totalShares || 10));
+  const goldProfitPerShare = Math.round(goldProfitToman / (totalShares || 10));
+  const goldValuePerShare = Math.round(currentGoldFundValuation / (totalShares || 10));
 
   return (
     <div className="space-y-6 font-sans" id="cycle-manager-container">
@@ -767,9 +798,9 @@ export default function CycleManager({
                   <Coins className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="text-sm font-black text-amber-950">ثبت و برآورد ارزش روز دارایی طلا توسط ادمین</h3>
+                  <h3 className="text-sm font-black text-amber-950">ثبت سود و برآورد ارزش روز دارایی طلا توسط ادمین</h3>
                   <p className="text-xs text-amber-800 mt-0.5">
-                    تعیین ارزش روز دارایی‌های خریداری شده با پس‌انداز اعضا جهت شفاف‌سازی و تصمیم‌گیری تسویه پایان دوره
+                    هر ماه با تکمیل فیش‌ها ۵ میلیون تومان به حساب طلا اضافه می‌شود. شما می‌توانید سود تا این لحظه یا ارزش کل دارایی را وارد کنید.
                   </p>
                 </div>
               </div>
@@ -777,34 +808,73 @@ export default function CycleManager({
               {goldSaveSuccess && (
                 <div className="flex items-center gap-1.5 bg-emerald-50 text-emerald-800 px-3 py-1.5 rounded-lg border border-emerald-200 text-xs font-bold animate-fadeIn">
                   <CheckCircle className="w-4 h-4 text-emerald-600" />
-                  <span>ارزش روز با موفقیت ذخیره گردید</span>
+                  <span>اطلاعات صندوق طلا با موفقیت ثبت گردید</span>
                 </div>
               )}
             </div>
 
-            <form onSubmit={handleSaveGoldValuation} className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <div className="sm:col-span-1">
-                <label className="block text-xs font-bold text-slate-700 mb-1">
-                  ارزش برآوردی کل دارایی طلا (تومان):
-                </label>
-                <div className="relative">
+            <form onSubmit={handleSaveGoldValuation} className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                {/* Field 1: Profit up to this moment (سود تا این لحظه) */}
+                <div className="p-3.5 bg-emerald-50/50 border border-emerald-200 rounded-lg">
+                  <label className="block text-xs font-bold text-emerald-950 mb-1 flex items-center justify-between">
+                    <span>📈 سود تا این لحظه (تومان):</span>
+                    <span className="text-[10px] text-emerald-700 bg-emerald-100 px-1.5 py-0.5 rounded font-mono">
+                      {toPersianDigits(goldGrowthRatePercent)}٪ رشد
+                    </span>
+                  </label>
+                  <input
+                    type="number"
+                    step="100000"
+                    value={goldProfitInput}
+                    onChange={(e) => handleProfitInputChange(e.target.value, baseSavingsDeposits)}
+                    required
+                    className="w-full p-2.5 bg-white border border-emerald-300 rounded-lg text-xs font-mono font-black text-emerald-950 focus:outline-none focus:border-emerald-600"
+                  />
+                  <span className="text-[10px] text-emerald-800 font-bold block mt-1">
+                    معادل سود: {formatCurrency(Number(goldProfitInput) || 0)}
+                  </span>
+                </div>
+
+                {/* Field 2: Total Gold Fund Valuation (مجموع کل ارزش دارایی طلا) */}
+                <div className="p-3.5 bg-amber-50/60 border border-amber-300 rounded-lg">
+                  <label className="block text-xs font-bold text-amber-950 mb-1 flex items-center justify-between">
+                    <span>🪙 مجموع کل ارزش دارایی (تومان):</span>
+                    <span className="text-[10px] text-amber-800 bg-amber-100 px-1.5 py-0.5 rounded">
+                      اصل + سود
+                    </span>
+                  </label>
                   <input
                     type="number"
                     step="100000"
                     value={goldValueInput}
-                    onChange={(e) => setGoldValueInput(e.target.value)}
+                    onChange={(e) => handleTotalValueInputChange(e.target.value, baseSavingsDeposits)}
                     required
-                    className="w-full p-2.5 bg-amber-50/40 border border-amber-300 rounded-lg text-xs font-mono font-black text-amber-950 focus:outline-none focus:border-amber-600 focus:bg-white"
+                    className="w-full p-2.5 bg-white border border-amber-300 rounded-lg text-xs font-mono font-black text-amber-950 focus:outline-none focus:border-amber-600"
                   />
+                  <span className="text-[10px] text-amber-800 font-bold block mt-1">
+                    معادل کل: {formatCurrency(Number(goldValueInput) || 0)}
+                  </span>
                 </div>
-                <span className="text-[10px] text-amber-800 font-bold block mt-1">
-                  معادل: {formatCurrency(Number(goldValueInput) || 0)}
-                </span>
+
+                {/* Field 3: Base Principal Info */}
+                <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-lg flex flex-col justify-between">
+                  <div>
+                    <span className="text-xs font-bold text-slate-700 block mb-1">💰 اصل مبلغ واریزی (پایه طلا):</span>
+                    <span className="text-base font-black text-slate-800 font-mono block">
+                      {formatCurrency(baseSavingsDeposits)}
+                    </span>
+                  </div>
+                  <span className="text-[10px] text-slate-500 leading-tight">
+                    هر ماه با پرداخت فیش‌های اعضا (۱۰ سهم × ۵۰۰ هزار تومان = ۵ میلیون تومان در ماه) به صورت خودکار محاسبه می‌گردد.
+                  </span>
+                </div>
               </div>
 
-              <div className="sm:col-span-2">
+              {/* Note & Submit Button */}
+              <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">
-                  یادداشت و استراتژی کشف ارزش طلا:
+                  یادداشت و استراتژی صندوق طلا:
                 </label>
                 <div className="flex gap-2">
                   <input
@@ -815,14 +885,14 @@ export default function CycleManager({
                   />
                   <button
                     type="submit"
-                    className="px-4 py-2.5 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-lg text-xs flex items-center gap-1.5 shrink-0 shadow cursor-pointer transition-all"
+                    className="px-5 py-2.5 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-lg text-xs flex items-center gap-1.5 shrink-0 shadow cursor-pointer transition-all"
                   >
                     <Save className="w-4 h-4" />
-                    <span>ثبت و ذخیره ارزش روز</span>
+                    <span>ثبت سود و ارزش روز طلا</span>
                   </button>
                 </div>
                 <span className="text-[10px] text-slate-400 block mt-1">
-                  این رقم و یادداشت مستقیماً در پنل کاربری اعضا و برآوردهای مالی نمایش داده می‌شود.
+                  این ارقام (مبلغ واریزی، سود و مجموع کل) مستقیماً در داشبورد و پنل کاربری اعضا نمایش داده می‌شوند.
                 </span>
               </div>
             </form>
@@ -832,14 +902,14 @@ export default function CycleManager({
           <div className="bg-gradient-to-br from-amber-500/10 via-amber-50 to-white rounded-xl border border-amber-300/80 p-6 shadow-sm space-y-5">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-amber-200">
               <div>
-                <h3 className="text-base font-black text-amber-950">گزارش بازدهی و پس‌انداز انباشته اعضا</h3>
+                <h3 className="text-base font-black text-amber-950">گزارش شفافیت بازدهی و صندوق طلای اعضا</h3>
                 <p className="text-xs text-amber-800 mt-0.5">
-                  تحلیل و پایش دارایی طلای خریداری شده از محل پس‌انداز ماهانه ۵۰۰ هزار تومانی هر سهم
+                  پایش تفکیکی مبالغ واریزی، سود انباشته طلا و ارزش کل دارایی اعضای صندوق
                 </p>
               </div>
 
               <div className="text-left bg-white/90 p-3 rounded-lg border border-amber-200 shadow-xs">
-                <span className="text-[10px] text-slate-500 block font-medium">ارزش روز ثبت‌شده کل دارایی</span>
+                <span className="text-[10px] text-slate-500 block font-medium">مجموع کل ارزش روز دارایی طلا</span>
                 <span className="text-lg font-black text-amber-900 font-mono">
                   {formatCurrency(currentGoldFundValuation)}
                 </span>
@@ -848,38 +918,40 @@ export default function CycleManager({
 
             {/* Financial Performance KPI Cards */}
             <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
-              <div className="p-3 bg-white rounded-lg border border-amber-200">
-                <span className="text-[11px] text-slate-500 block font-medium">سرمایه اولیه خرید طلا (واریزی‌ها)</span>
+              <div className="p-3 bg-white rounded-lg border border-amber-200 shadow-2xs">
+                <span className="text-[11px] text-slate-600 block font-bold">💰 اصل مبلغ واریزی به طلا</span>
                 <span className="text-sm font-black text-slate-800 mt-1 block font-mono">
                   {formatCurrency(baseSavingsDeposits)}
                 </span>
-                <span className="text-[10px] text-slate-400">۳ ماه اول × ۱۱ سهم</span>
+                <span className="text-[10px] text-slate-400">تکمیل فیش‌ها (۵ م.ت/ماه)</span>
               </div>
 
-              <div className="p-3 bg-white rounded-lg border border-amber-200">
-                <span className="text-[11px] text-amber-800 block font-medium">ارزش روز کل طلا (ثبت ادمین)</span>
-                <span className="text-sm font-black text-amber-950 mt-1 block font-mono">
-                  {formatCurrency(currentGoldFundValuation)}
-                </span>
-                <span className="text-[10px] text-amber-700">برآورد لحظه‌ای بازار</span>
-              </div>
-
-              <div className="p-3 bg-white rounded-lg border border-amber-200">
-                <span className="text-[11px] text-emerald-700 block font-medium">سود / بازدهی انباشته طلا</span>
+              <div className="p-3 bg-white rounded-lg border border-emerald-200 shadow-2xs">
+                <span className="text-[11px] text-emerald-800 block font-bold">📈 سود تا این لحظه</span>
                 <span className={`text-sm font-black mt-1 block font-mono ${goldProfitToman >= 0 ? "text-emerald-700" : "text-rose-600"}`}>
                   {goldProfitToman >= 0 ? `+${formatCurrency(goldProfitToman)}` : formatCurrency(goldProfitToman)}
                 </span>
                 <span className="text-[10px] text-emerald-700 font-bold">
-                  {goldProfitToman >= 0 ? `+${toPersianDigits(goldGrowthRatePercent)}% رشد سرمایه` : "افت ارزش"}
+                  {goldProfitToman >= 0 ? `+${toPersianDigits(goldGrowthRatePercent)}٪ رشد سرمایه` : "افت ارزش"}
                 </span>
               </div>
 
-              <div className="p-3 bg-white rounded-lg border border-amber-200">
-                <span className="text-[11px] text-indigo-700 block font-medium">ارزش برآوردی به ازای هر ۱ سهم</span>
+              <div className="p-3 bg-amber-50 rounded-lg border border-amber-300 shadow-2xs">
+                <span className="text-[11px] text-amber-900 block font-bold">🪙 مجموع کل (اصل + سود)</span>
+                <span className="text-sm font-black text-amber-950 mt-1 block font-mono">
+                  {formatCurrency(currentGoldFundValuation)}
+                </span>
+                <span className="text-[10px] text-amber-800 font-medium">ارزش روز کل سبد طلا</span>
+              </div>
+
+              <div className="p-3 bg-white rounded-lg border border-indigo-200 shadow-2xs">
+                <span className="text-[11px] text-indigo-800 block font-bold">💎 ارزش برآوردی هر ۱ سهم</span>
                 <span className="text-sm font-black text-indigo-900 mt-1 block font-mono">
                   {formatCurrency(goldValuePerShare)}
                 </span>
-                <span className="text-[10px] text-indigo-600">تقسیم بر {toPersianDigits(totalShares)} سهم فعال</span>
+                <span className="text-[10px] text-indigo-600">
+                  شامل {formatCurrency(goldProfitPerShare)} سود هر سهم
+                </span>
               </div>
             </div>
 
@@ -888,23 +960,10 @@ export default function CycleManager({
               <div className="flex items-start gap-2">
                 <Flame className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
                 <div>
-                  <h4 className="font-bold text-amber-950 mb-1">سازوکار انتقال مبلغ انباشته به دوره‌های بعدی:</h4>
+                  <h4 className="font-bold text-amber-950 mb-1">سازوکار واریز ماهانه ۵ میلیون تومان و تسویه پایان دوره:</h4>
                   <p className="text-slate-600">
-                    با توجه به اینکه مبالغ پس‌انداز ماهانه هر سهم (۵۰۰,۰۰۰ تومان در ماه) به صورت متمرکز در صندوق طلا سرمایه‌گذاری شده است، 
-                    میزان نهایی ارزش دارایی در پایان دوره سوم (پس از اتمام تمام اقساط) به ارزش روز طلا محاسبه و ارزش نهایی آن کشف خواهد شد.
-                  </p>
-                  <p className="text-slate-600 mt-1">
-                    در پایان دوره، در مورد نحوه انتقال این مبلغ انباشته (به صورت افزایش سرمایه پایه اعضا در دور چهارم، یا بازپرداخت، یا تجمیع به عنوان وام بدون کارمزد) توسط مجمع اعضا تصمیم‌گیری خواهد شد.
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex items-start gap-2 pt-2 border-t border-amber-100">
-                <Award className="w-4 h-4 text-teal-700 shrink-0 mt-0.5" />
-                <div>
-                  <h4 className="font-bold text-teal-950 mb-1">استراتژی عضوگیری و امتیازدهی در دوره‌های آتی:</h4>
-                  <p className="text-slate-600">
-                    سابقه اعضا در دوره‌های اول، دوم و سوم به عنوان امتیاز قدمت و اعتبار لحاظ خواهد شد. اعضای موسس و باسابقه در اولویت‌بندی دوره‌های بعدی و ضرایب تسهیلات در جایگاه ویژه قرار خواهند گرفت.
+                    با تکمیل فیش‌های هر ماه، مبالغ پس‌انداز اعضا (به ازای ۱۰ سهم، ۵ میلیون تومان در ماه) به صندوق طلا منتقل می‌شود. 
+                    سود حاصل از نوسانات بازار طلا به صورت مستمر ثبت شده و در پایان دوره، کل اندوخته (اصل + سود) با تصمیم مجمع تسویه یا به دوره بعد منتقل می‌گردد.
                   </p>
                 </div>
               </div>
@@ -914,7 +973,7 @@ export default function CycleManager({
             <div className="bg-white rounded-lg border border-amber-200 p-4 space-y-3">
               <h4 className="text-xs font-bold text-amber-950 flex items-center gap-1.5">
                 <Users className="w-4 h-4 text-amber-600" />
-                <span>سهم اختصاصی هر یک از اعضا از سبد طلای صندوق (دوره ۳)</span>
+                <span>سهم اختصاصی هر یک از اعضا از سبد طلای صندوق (اصل + سود)</span>
               </h4>
 
               <div className="overflow-x-auto">
@@ -923,17 +982,19 @@ export default function CycleManager({
                     <tr className="bg-amber-50/80 text-amber-950 border-b border-amber-200 text-[11px]">
                       <th className="p-2.5 font-bold">نام اقامتگاه / عضو</th>
                       <th className="p-2.5 font-bold text-center">تعداد سهم</th>
-                      <th className="p-2.5 font-bold text-center">مجموع پس‌انداز واریزی (۳ ماه)</th>
-                      <th className="p-2.5 font-bold text-center">ارزش برآوردی سهم از طلا</th>
+                      <th className="p-2.5 font-bold text-center">اصل پس‌انداز واریزی</th>
+                      <th className="p-2.5 font-bold text-center">سود تا این لحظه</th>
+                      <th className="p-2.5 font-bold text-center">مجموع ارزش روز سهم طلا</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
                     {members
-                      .filter(m => (m.participatedCycles || [3]).includes(3))
+                      .filter(m => (m.participatedCycles || [currentCycle?.cycleNumber || 3]).includes(currentCycle?.cycleNumber || 3))
                       .map(member => {
                         const shares = member.currentCycleShares || 1;
-                        const memberPaidSavings = shares * 500000 * 3;
-                        const memberEstimatedGold = goldValuePerShare * shares;
+                        const memberPrincipal = goldPrincipalPerShare * shares;
+                        const memberProfit = goldProfitPerShare * shares;
+                        const memberTotalGold = goldValuePerShare * shares;
 
                         return (
                           <tr key={member.id} className="hover:bg-amber-50/30">
@@ -946,10 +1007,13 @@ export default function CycleManager({
                               </span>
                             </td>
                             <td className="p-2.5 text-center font-mono text-slate-700">
-                              {formatCurrency(memberPaidSavings)}
+                              {formatCurrency(memberPrincipal)}
                             </td>
-                            <td className="p-2.5 text-center font-mono font-bold text-amber-900">
-                              {formatCurrency(memberEstimatedGold)}
+                            <td className="p-2.5 text-center font-mono font-bold text-emerald-700">
+                              +{formatCurrency(memberProfit)}
+                            </td>
+                            <td className="p-2.5 text-center font-mono font-bold text-amber-950">
+                              {formatCurrency(memberTotalGold)}
                             </td>
                           </tr>
                         );

@@ -46,9 +46,27 @@ export default function FundOverview({ members, payments, lotteries, settings, c
   const totalCollectedSavingsMonth = currentMonthPayments.reduce((sum, p) => sum + (p.savingsAmount || 0), 0);
   const totalCollectedMonth = totalCollectedLoanMonth + totalCollectedSavingsMonth;
 
-  // Accumulated Savings portfolio sum across cycle
+  // Accumulated Savings portfolio sum across cycle (Gold Fund Principal)
   const allPaidPayments = payments.filter(p => p.status === "paid");
   const accumulatedSavingsTotal = allPaidPayments.reduce((sum, p) => sum + (p.savingsAmount || 0), 0);
+  
+  // Total Gold Fund Principal Deposits (5M Toman deposited per completed month with receipts)
+  const totalGoldDeposits = accumulatedSavingsTotal > 0 
+    ? accumulatedSavingsTotal 
+    : (activeCycle?.accumulatedSavingsPool || 20000000);
+
+  // Profit up to this moment (entered by admin or calculated from total value)
+  const goldProfitToman = settings.goldFundProfitToman !== undefined
+    ? settings.goldFundProfitToman
+    : (settings.goldFundValueToman 
+        ? Math.max(0, settings.goldFundValueToman - totalGoldDeposits) 
+        : 3500000);
+
+  // Total Gold Asset Value = Principal + Profit
+  const totalGoldValue = totalGoldDeposits + goldProfitToman;
+  const goldGrowthPercent = totalGoldDeposits > 0 
+    ? ((goldProfitToman / totalGoldDeposits) * 100).toFixed(1) 
+    : "0";
 
   // Spent emergency loans from savings
   const totalEmergencyLoansPaid = lotteries
@@ -157,37 +175,63 @@ export default function FundOverview({ members, payments, lotteries, settings, c
             </div>
           </motion.div>
 
-          {/* Card 3: Accumulated Gold Savings Portfolio */}
+          {/* Card 3: Accumulated Gold Savings Portfolio with Transparent Breakdown */}
           <motion.div 
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.2 }}
-            className="bg-amber-50/40 p-5 rounded-xl border border-amber-200/80 shadow-sm flex flex-col justify-between"
+            className="bg-amber-50/50 p-5 rounded-xl border border-amber-200/90 shadow-sm flex flex-col justify-between"
             id="stat-card-accumulated-savings"
           >
             <div className="flex justify-between items-start">
               <div>
-                <p className="text-[11px] font-black text-amber-950 mb-1">صندوق پس‌انداز طلا (انباشته)</p>
-                <div className="mt-2">
-                  <span className="text-xl font-black text-amber-900 tracking-tight font-mono">
-                    {toPersianDigits(new Intl.NumberFormat("en-US").format(accumulatedSavingsTotal))}
+                <p className="text-[11px] font-black text-amber-950 mb-1 flex items-center gap-1">
+                  <span>صندوق پس‌انداز طلا (انباشته)</span>
+                  <span className="text-[9px] px-1.5 py-0.2 bg-amber-200/60 text-amber-900 rounded font-bold">
+                    {toPersianDigits(goldGrowthPercent)}٪+ بازدهی
                   </span>
-                  <span className="text-xs mr-1 text-amber-700/60">تومان</span>
+                </p>
+                <div className="mt-1.5">
+                  <span className="text-xl font-black text-amber-950 tracking-tight font-mono">
+                    {toPersianDigits(new Intl.NumberFormat("en-US").format(totalGoldValue))}
+                  </span>
+                  <span className="text-xs mr-1 text-amber-800/70">تومان</span>
                 </div>
+                <span className="text-[10px] text-amber-800 font-bold block mt-0.5">
+                  مجموع کل ارزش دارایی طلا (اصل + سود)
+                </span>
               </div>
-              <div className="p-2 bg-amber-100 border border-amber-200 rounded text-amber-900">
+              <div className="p-2 bg-amber-100 border border-amber-200 rounded text-amber-900 shadow-2xs">
                 <Shield className="w-4 h-4" />
               </div>
             </div>
 
-            <div className="mt-3 pt-3 border-t border-amber-200/60 space-y-1">
-              <div className="flex items-center justify-between text-[11px] text-amber-950">
-                <span className="font-bold text-amber-900">پس‌انداز ماهانه هر سهم:</span>
-                <span className="font-black text-amber-950">{formatCurrency(monthlySavingsAmount)}</span>
+            {/* Transparent Financial Breakdown: Principal + Profit = Total */}
+            <div className="mt-3 pt-3 border-t border-amber-200/70 space-y-1.5 text-xs font-sans">
+              <div className="flex items-center justify-between text-[11px]">
+                <span className="text-amber-900 font-medium flex items-center gap-1">
+                  <span>💰 اصل واریزی (ماهانه ۵ م.ت):</span>
+                </span>
+                <span className="font-mono font-bold text-slate-800">
+                  {formatCurrency(totalGoldDeposits)}
+                </span>
               </div>
-              <span className="text-[9px] text-amber-800 block leading-tight">
-                سرمایه‌گذاری در صندوق طلا (تسویه پایان دوره)
-              </span>
+
+              <div className="flex items-center justify-between text-[11px]">
+                <span className="text-emerald-800 font-medium flex items-center gap-1">
+                  <span>📈 سود تا این لحظه:</span>
+                </span>
+                <span className="font-mono font-black text-emerald-700">
+                  {goldProfitToman >= 0 ? `+${formatCurrency(goldProfitToman)}` : formatCurrency(goldProfitToman)}
+                </span>
+              </div>
+
+              <div className="flex items-center justify-between text-[11px] pt-1 border-t border-dashed border-amber-200 text-amber-950">
+                <span className="font-bold">🪙 مجموع کل (اصل + سود):</span>
+                <span className="font-mono font-black text-amber-950">
+                  {formatCurrency(totalGoldValue)}
+                </span>
+              </div>
             </div>
           </motion.div>
         </div>

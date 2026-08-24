@@ -282,10 +282,11 @@ export default function AdminPanel({
     return JSON.stringify(currentDb, null, 2);
   };
 
-  // Gold Fund Valuation & Note
-  const [editGoldFundValue, setEditGoldFundValue] = useState<string>((settings.goldFundValueToman || 18500000).toString());
+  // Gold Fund Valuation, Profit & Note
+  const [editGoldProfit, setEditGoldProfit] = useState<string>((settings.goldFundProfitToman !== undefined ? settings.goldFundProfitToman : 3500000).toString());
+  const [editGoldFundValue, setEditGoldFundValue] = useState<string>((settings.goldFundValueToman || 23500000).toString());
   const [editGoldInvestmentNote, setEditGoldInvestmentNote] = useState<string>(
-    settings.goldInvestmentNote || "مبالغ پس‌انداز ماهانه در صندوق طلا سرمایه‌گذاری شده و ارزش روز آن در پایان دوره تعیین خواهد شد."
+    settings.goldInvestmentNote || "مبالغ پس‌انداز ماهانه (۵ میلیون تومان در ماه با تکمیل فیش‌ها) در صندوق طلا سرمایه‌گذاری شده و سود و ارزش روز آن در پایان دوره تعیین خواهد شد."
   );
 
   // Telegram Integration States
@@ -332,9 +333,10 @@ export default function AdminPanel({
     setEditAutoDrawOnFirst(settings.autoDrawOnFirstOfMonth ?? true);
     setEditAdminPassword(settings.adminPassword || "admin");
     setEditLogoUrl(settings.logoUrl || "");
-    setEditGoldFundValue((settings.goldFundValueToman || 18500000).toString());
+    setEditGoldProfit((settings.goldFundProfitToman !== undefined ? settings.goldFundProfitToman : 3500000).toString());
+    setEditGoldFundValue((settings.goldFundValueToman || 23500000).toString());
     setEditGoldInvestmentNote(
-      settings.goldInvestmentNote || "مبالغ پس‌انداز ماهانه در صندوق طلا سرمایه‌گذاری شده و ارزش روز آن در پایان دوره تعیین خواهد شد."
+      settings.goldInvestmentNote || "مبالغ پس‌انداز ماهانه (۵ میلیون تومان در ماه با تکمیل فیش‌ها) در صندوق طلا سرمایه‌گذاری شده و سود و ارزش روز آن در پایان دوره تعیین خواهد شد."
     );
     setEditTelegramBotToken(settings.telegramBotToken || "");
     setEditTelegramChatId(settings.telegramChatId || "");
@@ -406,7 +408,8 @@ export default function AdminPanel({
       autoDrawOnFirstOfMonth: editAutoDrawOnFirst,
       adminPassword: editAdminPassword,
       logoUrl: editLogoUrl,
-      goldFundValueToman: Number(editGoldFundValue) || 18500000,
+      goldFundProfitToman: Number(editGoldProfit) !== undefined && !isNaN(Number(editGoldProfit)) ? Number(editGoldProfit) : 3500000,
+      goldFundValueToman: Number(editGoldFundValue) || 23500000,
       goldInvestmentNote: editGoldInvestmentNote,
       telegramBotToken: editTelegramBotToken,
       telegramChatId: editTelegramChatId,
@@ -2031,29 +2034,58 @@ export default function AdminPanel({
                     </label>
                   </div>
 
-                  {/* Gold Investment & Valuation Setting */}
+                  {/* Gold Investment, Profit & Valuation Setting */}
                   <div className="p-3.5 bg-amber-50/70 border border-amber-200 rounded-lg space-y-3">
                     <div className="flex items-center justify-between">
                       <span className="text-xs font-bold text-amber-950 flex items-center gap-1.5">
                         <Coins className="w-4 h-4 text-amber-600" />
-                        برآورد ارزش روز دارایی طلا (صندوق پس‌انداز)
+                        ثبت سود و ارزش روز دارایی طلا (صندوق پس‌انداز)
                       </span>
                       <span className="text-[10px] text-amber-800 font-bold bg-amber-100/70 px-2 py-0.5 rounded">
-                        قابل تنظیم توسط ادمین
+                        واریز ۵ م.ت/ماه با تکمیل فیش‌ها
                       </span>
                     </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                       <div>
-                        <label className="block text-[11px] font-bold text-slate-600 mb-1">ارزش روز دارایی طلا (تومان):</label>
+                        <label className="block text-[11px] font-bold text-emerald-800 mb-1">📈 سود تا این لحظه (تومان):</label>
+                        <input
+                          type="number"
+                          step="100000"
+                          value={editGoldProfit}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setEditGoldProfit(val);
+                            const pNum = Number(val);
+                            const base = totalSavingsPaidAllTime > 0 ? totalSavingsPaidAllTime : 20000000;
+                            if (!isNaN(pNum)) {
+                              setEditGoldFundValue((base + pNum).toString());
+                            }
+                          }}
+                          className="w-full p-2.5 border border-emerald-300 bg-white text-emerald-950 font-mono font-black rounded text-xs focus:outline-none focus:border-emerald-500"
+                        />
+                        <span className="text-[10px] text-emerald-800 mt-0.5 block font-mono font-bold">
+                          سود: +{formatCurrency(Number(editGoldProfit) || 0)}
+                        </span>
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-bold text-amber-950 mb-1">🪙 مجموع کل ارزش طلا (تومان):</label>
                         <input
                           type="number"
                           step="100000"
                           value={editGoldFundValue}
-                          onChange={(e) => setEditGoldFundValue(e.target.value)}
-                          className="w-full p-2.5 border border-amber-200 bg-white text-amber-950 font-mono font-black rounded text-xs focus:outline-none focus:border-amber-500"
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setEditGoldFundValue(val);
+                            const tNum = Number(val);
+                            const base = totalSavingsPaidAllTime > 0 ? totalSavingsPaidAllTime : 20000000;
+                            if (!isNaN(tNum)) {
+                              setEditGoldProfit((Math.max(0, tNum - base)).toString());
+                            }
+                          }}
+                          className="w-full p-2.5 border border-amber-300 bg-white text-amber-950 font-mono font-black rounded text-xs focus:outline-none focus:border-amber-500"
                         />
                         <span className="text-[10px] text-amber-800 mt-0.5 block font-mono font-bold">
-                          معادل: {formatCurrency(Number(editGoldFundValue) || 0)}
+                          مجموع: {formatCurrency(Number(editGoldFundValue) || 0)}
                         </span>
                       </div>
                       <div>
@@ -2062,10 +2094,10 @@ export default function AdminPanel({
                           type="text"
                           value={editGoldInvestmentNote}
                           onChange={(e) => setEditGoldInvestmentNote(e.target.value)}
-                          className="w-full p-2.5 border border-amber-200 bg-white text-slate-800 rounded text-xs focus:outline-none focus:border-amber-500"
+                          className="w-full p-2.5 border border-slate-200 bg-white text-slate-800 rounded text-xs focus:outline-none focus:border-amber-500"
                         />
                         <span className="text-[10px] text-slate-400 mt-0.5 block">
-                          نمایش در پنل اعضا و گزارش‌های دوره‌ای
+                          نمایش در داشبورد و پنل اعضا
                         </span>
                       </div>
                     </div>

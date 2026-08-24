@@ -66,6 +66,7 @@ export interface FundCycle {
   notes?: string;
   goldInvestmentNote?: string;
   accumulatedSavingsPool?: number;
+  goldFundProfitToman?: number;
   pastWinners?: { monthName: string; winnerName: string; loanType?: string }[];
 }
 
@@ -90,6 +91,7 @@ export interface FundSettings {
   // Gold Fund Investment Note
   goldInvestmentNote?: string;
   goldFundValueToman?: number;
+  goldFundProfitToman?: number;
   // Telegram notification settings
   telegramBotToken?: string;
   telegramChatId?: string;

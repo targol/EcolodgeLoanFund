@@ -754,22 +754,51 @@ export default function MemberPanel({
               </div>
             </div>
 
-            {/* Gold Savings Badge for Member */}
-            <div className="p-3 bg-amber-50/60 border border-amber-200 rounded-lg space-y-1 text-xs">
-              <div className="flex items-center justify-between">
-                <span className="font-bold text-amber-950 flex items-center gap-1 text-[11px]">
-                  <Coins className="w-3.5 h-3.5 text-amber-600" />
-                  پس‌انداز شما در صندوق طلا:
-                </span>
-                <span className="font-black text-amber-900 font-mono text-[11px]">
-                  {formatCurrency(memberShares * (activeCycle?.savingsAmount || settings.savingsAmount || 500000) * paidCount)}
-                </span>
-              </div>
-              <p className="text-[10px] text-amber-800 leading-tight">
-                {memberShares > 1 ? `به ازای ${toPersianDigits(memberShares)} سهم شما، ` : ""}
-                مبالغ پس‌انداز ماهانه در صندوق طلا سرمایه‌گذاری شده و تسویه/انتقال آن در پایان دوره به ارزش روز محاسبه می‌شود.
-              </p>
-            </div>
+            {/* Gold Savings Badge for Member with Transparent Breakdown */}
+            {(() => {
+              const totalCycleShares = activeCycleMembers.reduce((sum, m) => sum + (activeCycle?.memberShares?.[m.id] || m.currentCycleShares || 1), 0) || 10;
+              const allCyclePaidPayments = payments.filter(p => p.status === "paid" && (p.savingsAmount || 0) > 0 && activeCycleMembers.some(m => m.id === p.memberId));
+              const activeCycleSavingsDeposits = allCyclePaidPayments.length > 0
+                ? allCyclePaidPayments.reduce((sum, p) => sum + (p.savingsAmount || 0), 0)
+                : 20000000;
+              const goldProfit = settings.goldFundProfitToman !== undefined
+                ? settings.goldFundProfitToman
+                : (settings.goldFundValueToman ? Math.max(0, settings.goldFundValueToman - activeCycleSavingsDeposits) : 3500000);
+              
+              const memberPrincipal = memberShares * (activeCycle?.savingsAmount || settings.savingsAmount || 500000) * paidCount;
+              const memberProfit = Math.round((goldProfit / (totalCycleShares || 10)) * memberShares);
+              const memberTotalGold = memberPrincipal + memberProfit;
+
+              return (
+                <div className="p-3 bg-amber-50/70 border border-amber-200 rounded-lg space-y-2 text-xs">
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-amber-950 flex items-center gap-1.5 text-[11px]">
+                      <Coins className="w-4 h-4 text-amber-600" />
+                      اندوخته طلای شما ({toPersianDigits(memberShares)} سهم):
+                    </span>
+                    <span className="font-black text-amber-950 font-mono text-xs">
+                      {formatCurrency(memberTotalGold)}
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2 pt-1.5 border-t border-amber-200/60 text-[10px]">
+                    <div className="bg-white/80 p-1.5 rounded border border-amber-100">
+                      <span className="text-slate-500 block">💰 اصل پس‌انداز واریزی:</span>
+                      <span className="font-mono font-bold text-slate-800">{formatCurrency(memberPrincipal)}</span>
+                    </div>
+                    <div className="bg-white/80 p-1.5 rounded border border-amber-100">
+                      <span className="text-emerald-700 block">📈 سود تا این لحظه:</span>
+                      <span className="font-mono font-black text-emerald-700">+{formatCurrency(memberProfit)}</span>
+                    </div>
+                  </div>
+
+                  <p className="text-[10px] text-amber-800 leading-tight">
+                    {memberShares > 1 ? `به ازای ${toPersianDigits(memberShares)} سهم شما، ` : ""}
+                    مبالغ پس‌انداز ماهانه در صندوق طلا سرمایه‌گذاری شده و تسویه/انتقال آن در پایان دوره به ارزش روز (اصل + سود) محاسبه می‌شود.
+                  </p>
+                </div>
+              );
+            })()}
           </div>
 
           {/* LOAN APPLICATION CENTRE (صندوق درخواست وام) */}

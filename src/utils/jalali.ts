@@ -194,8 +194,9 @@ export function getInitialMockData(): {
     currentYear: 1405,
     currentMonthIndex: 5,   // Shahrivar 1405 (index 5)
     adminPassword: "admin",
-    goldInvestmentNote: "مبالغ پس‌انداز ماهانه (۵۰۰,۰۰۰ تومان در ماه به ازای هر سهم) در صندوق طلا سرمایه‌گذاری شده است. ارزش روز و میزان نهایی پس‌انداز انباشته پس از اتمام دوره محاسبه و در مورد نحوه انتقال آن به دوره‌های آینده تصمیم‌گیری خواهد شد.",
-    goldFundValueToman: 18500000, // Estimated current valuation of accumulated gold investment
+    goldInvestmentNote: "مبالغ پس‌انداز ماهانه (۵۰۰,۰۰۰ تومان در ماه به ازای هر سهم = ۵ میلیون تومان در ماه) در صندوق طلا سرمایه‌گذاری شده است. ارزش روز، سود انباشته و میزان نهایی دارایی در پایان دوره محاسبه و در مورد نحوه انتقال آن تصمیم‌گیری خواهد شد.",
+    goldFundProfitToman: 3500000, // Accumulated profit to date (سود تا این لحظه)
+    goldFundValueToman: 23500000, // Total gold assets value (اصل ۲۰ میلیون + سود ۳.۵ میلیون)
     telegramBotToken: "",
     telegramChatId: "",
     enableTelegramNotification: true,
