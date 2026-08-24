@@ -96,6 +96,49 @@ export function jalaliToGregorian(jy: number, jm: number, jd: number): Date {
   return new Date(gy, gm - 1, gd);
 }
 
+// Get accurate number of days in a Jalali month
+export function getDaysInJalaliMonth(year: number, monthIndex: number): number {
+  if (monthIndex >= 0 && monthIndex <= 5) return 31;
+  if (monthIndex >= 6 && monthIndex <= 10) return 30;
+  // Esfand leap check
+  const gDate = jalaliToGregorian(year, 12, 30);
+  const jStr = gregorianToJalali(gDate);
+  if (jStr.endsWith("/30")) return 30;
+  return 29;
+}
+
+// Get real-time current Shamsi today
+export function getTodayJalali(): { year: number; monthIndex: number; day: number; monthName: string; formatted: string } {
+  const [jyStr, jmStr, jdStr] = gregorianToJalali(new Date()).split("/");
+  const year = parseInt(jyStr, 10) || 1405;
+  const month = parseInt(jmStr, 10) || 6;
+  const day = parseInt(jdStr, 10) || 1;
+  const monthIndex = Math.max(0, Math.min(11, month - 1));
+  return {
+    year,
+    monthIndex,
+    day,
+    monthName: PERS_MONTH_NAMES[monthIndex] || "شهریور",
+    formatted: `${year}/${String(month).padStart(2, '0')}/${String(day).padStart(2, '0')}`
+  };
+}
+
+// Helper to get previous Jalali month
+export function getPrevJalaliMonth(year: number, monthIndex: number): { year: number; monthIndex: number } {
+  if (monthIndex === 0) {
+    return { year: year - 1, monthIndex: 11 };
+  }
+  return { year, monthIndex: monthIndex - 1 };
+}
+
+// Helper to get next Jalali month
+export function getNextJalaliMonth(year: number, monthIndex: number): { year: number; monthIndex: number } {
+  if (monthIndex === 11) {
+    return { year: year + 1, monthIndex: 0 };
+  }
+  return { year, monthIndex: monthIndex + 1 };
+}
+
 // Format numbers with commas (e.g., 2,000,000) inside Persian string
 export function formatCurrency(amount: number): string {
   const formatted = new Intl.NumberFormat("en-US").format(amount);

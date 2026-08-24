@@ -1,13 +1,23 @@
 import React, { useState, useEffect } from "react";
 import { Member, Payment, LotteryResult, FundSettings, FundCycle, PERS_MONTH_NAMES } from "./types";
-import { getInitialMockData, calculatePaymentScore, toPersianDigits, formatCurrency, gregorianToJalali } from "./utils/jalali";
+import { 
+  getInitialMockData, 
+  calculatePaymentScore, 
+  toPersianDigits, 
+  formatCurrency, 
+  gregorianToJalali,
+  getTodayJalali,
+  getPrevJalaliMonth,
+  getNextJalaliMonth
+} from "./utils/jalali";
 import { cloudSyncService, CloudSyncStatus } from "./services/cloudflareSync";
 import FundOverview from "./components/FundOverview";
 import AdminPanel from "./components/AdminPanel";
 import MemberPanel from "./components/MemberPanel";
 import ConstitutionModal from "./components/ConstitutionModal";
 import { 
-  Lock, User, Landmark, HelpCircle, ShieldCheck, UserCheck, Key, Eye, EyeOff, AlertCircle, Cloud, RefreshCw
+  Lock, User, Landmark, HelpCircle, ShieldCheck, UserCheck, Key, Eye, EyeOff, AlertCircle, Cloud, RefreshCw,
+  ChevronRight, ChevronLeft, CalendarDays, Compass
 } from "lucide-react";
 
 export default function App() {
@@ -920,8 +930,52 @@ export default function App() {
               )}
             </div>
 
-            <div className="text-[10px] text-slate-500 font-sans">
-              دوره حسابرسی جاری: <strong className="font-bold text-slate-700">{PERS_MONTH_NAMES[settings.currentMonthIndex]} {toPersianDigits(settings.currentYear)}</strong>
+            <div className="flex flex-wrap items-center gap-2 text-xs font-sans">
+              <div className="flex items-center gap-1 bg-slate-50 border border-slate-200 px-2.5 py-1 rounded-lg">
+                <CalendarDays className="w-3.5 h-3.5 text-teal-700" />
+                <span className="text-[10px] text-slate-500">ماه فعال:</span>
+                <strong className="font-bold text-teal-900 text-xs">
+                  {PERS_MONTH_NAMES[settings.currentMonthIndex]} {toPersianDigits(settings.currentYear)}
+                </strong>
+              </div>
+
+              {/* Quick prev/next/today navigation buttons */}
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const prev = getPrevJalaliMonth(settings.currentYear, settings.currentMonthIndex);
+                    handleUpdateSettings({ currentYear: prev.year, currentMonthIndex: prev.monthIndex });
+                  }}
+                  className="p-1 bg-white hover:bg-slate-100 text-slate-600 rounded border border-slate-200 transition-colors cursor-pointer"
+                  title="ماه قبل"
+                >
+                  <ChevronRight className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const today = getTodayJalali();
+                    handleUpdateSettings({ currentYear: today.year, currentMonthIndex: today.monthIndex });
+                  }}
+                  className="px-2 py-0.5 bg-teal-50 hover:bg-teal-100 text-teal-800 text-[10px] font-bold rounded border border-teal-200 transition-colors cursor-pointer flex items-center gap-1"
+                  title="تنظیم به امروز"
+                >
+                  <Compass className="w-3 h-3 text-teal-700" />
+                  <span>امروز</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const next = getNextJalaliMonth(settings.currentYear, settings.currentMonthIndex);
+                    handleUpdateSettings({ currentYear: next.year, currentMonthIndex: next.monthIndex });
+                  }}
+                  className="p-1 bg-white hover:bg-slate-100 text-slate-600 rounded border border-slate-200 transition-colors cursor-pointer"
+                  title="ماه بعد"
+                >
+                  <ChevronLeft className="w-3.5 h-3.5" />
+                </button>
+              </div>
             </div>
           </div>
 

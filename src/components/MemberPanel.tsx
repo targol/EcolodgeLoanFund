@@ -1,10 +1,10 @@
 import React, { useState } from "react";
 import { Member, Payment, FundSettings, FundCycle, PERS_MONTH_NAMES } from "../types";
-import { toPersianDigits, formatCurrency, calculatePaymentScore } from "../utils/jalali";
+import { toPersianDigits, formatCurrency, calculatePaymentScore, getDaysInJalaliMonth, getTodayJalali } from "../utils/jalali";
 import { 
   User, CheckCircle, AlertCircle, Calendar, Sparkles, TrendingUp, Clock,
   Trophy, ArrowLeftRight, CreditCard, Award, ShieldAlert, Key, LogOut, Check, HelpCircle,
-  Coins, Layers, Shield
+  Coins, Layers, Shield, Compass, CalendarDays
 } from "lucide-react";
 
 interface MemberPanelProps {
@@ -542,11 +542,29 @@ export default function MemberPanel({
 
                 {/* Date Calendar Picker Grid & Score Predictor Widget */}
                 <div className="p-5 rounded-lg bg-slate-50 border border-slate-200 space-y-4 font-sans">
-                  <div className="flex justify-between items-center pb-2 border-b border-slate-200">
-                    <span className="text-xs font-bold text-slate-705">روز دقیق واریز فیش را روی تقویم شمسی زیر انتخاب کنید:</span>
-                    <span className="font-mono font-bold text-teal-700 text-xs shrink-0 bg-white px-2 py-1 rounded border border-slate-250">
-                      روز {toPersianDigits(simulatedDay)} ام ماه
-                    </span>
+                  <div className="flex flex-wrap justify-between items-center pb-2 border-b border-slate-200 gap-2">
+                    <div>
+                      <span className="text-xs font-bold text-slate-800">
+                        روز دقیق واریز فیش در تقویم ({PERS_MONTH_NAMES[settings.currentMonthIndex]} {toPersianDigits(settings.currentYear)}):
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const today = getTodayJalali();
+                          setSimulatedDay(today.day);
+                        }}
+                        className="text-[10px] font-bold text-teal-800 hover:text-teal-950 bg-white hover:bg-teal-50 px-2 py-1 rounded-md border border-teal-200 transition-all cursor-pointer flex items-center gap-1 shadow-2xs"
+                        title="انتخاب سریع روز جاری"
+                      >
+                        <Compass className="w-3 h-3 text-teal-700" />
+                        <span>📌 انتخاب امروز ({toPersianDigits(getTodayJalali().day)})</span>
+                      </button>
+                      <span className="font-mono font-bold text-teal-800 text-xs shrink-0 bg-white px-2 py-1 rounded-md border border-slate-300">
+                        روز {toPersianDigits(simulatedDay)} ام ماه
+                      </span>
+                    </div>
                   </div>
 
                   {/* Shamsi Calendar Grid Selector for Members */}
@@ -556,18 +574,19 @@ export default function MemberPanel({
                       <span key={index} className="text-[10px] text-slate-400 font-bold py-1">{w}</span>
                     ))}
                     {/* Month Days */}
-                    {Array.from({ length: (settings.currentMonthIndex <= 5 ? 31 : (settings.currentMonthIndex <= 10 ? 30 : 29)) }, (_, idx) => {
+                    {Array.from({ length: getDaysInJalaliMonth(settings.currentYear, settings.currentMonthIndex) }, (_, idx) => {
                       const dayNum = idx + 1;
                       const isSelected = simulatedDay === dayNum;
                       const isEarly = dayNum <= settings.lotteryDayOfMonth;
+                      const isToday = getTodayJalali().day === dayNum && getTodayJalali().monthIndex === settings.currentMonthIndex && getTodayJalali().year === settings.currentYear;
                       return (
                         <button
                           key={dayNum}
                           type="button"
                           onClick={() => setSimulatedDay(dayNum)}
-                          className={`h-8 rounded text-xs font-mono font-bold transition-all flex flex-col items-center justify-center cursor-pointer ${
+                          className={`h-8 rounded text-xs font-mono font-bold transition-all flex flex-col items-center justify-center cursor-pointer relative ${
                             isSelected 
-                              ? "bg-teal-700 text-white font-black scale-105 shadow-sm border border-teal-850"
+                              ? "bg-teal-700 text-white font-black scale-105 shadow-sm border border-teal-850 ring-2 ring-teal-500/50"
                               : isEarly
                                 ? "bg-emerald-100 hover:bg-emerald-205 text-emerald-800 border border-emerald-200"
                                 : "bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-100"
@@ -575,6 +594,9 @@ export default function MemberPanel({
                           title={isEarly ? `تعجیل خوش‌حسابی (روز ${dayNum})` : `تاخیر دیرکرد (روز ${dayNum})`}
                         >
                           <span>{toPersianDigits(dayNum)}</span>
+                          {isToday && !isSelected && (
+                            <span className="w-1.5 h-1.5 rounded-full bg-teal-800 absolute bottom-1" />
+                          )}
                         </button>
                       );
                     })}

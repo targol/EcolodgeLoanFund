@@ -1,6 +1,15 @@
 import React, { useState, useEffect } from "react";
 import { Member, Payment, FundSettings, FundCycle, PERS_MONTH_NAMES, MessageTemplate } from "../types";
-import { toPersianDigits, formatCurrency, calculatePaymentScore, gregorianToJalali } from "../utils/jalali";
+import { 
+  toPersianDigits, 
+  formatCurrency, 
+  calculatePaymentScore, 
+  gregorianToJalali,
+  getDaysInJalaliMonth,
+  getTodayJalali,
+  getPrevJalaliMonth,
+  getNextJalaliMonth
+} from "../utils/jalali";
 import { 
   sendTelegramMessage, 
   formatTelegramMessage, 
@@ -14,7 +23,8 @@ import {
   Settings as SettingsIcon, Save, RefreshCw, Trophy, Info, Key, Shield, Eye, EyeOff, Filter,
   Send, Bot, MessageSquare, Loader2, CheckCircle2, Radio, Image as ImageIcon, Upload, Link as LinkIcon,
   Layers, Download, Database, FileCode, Copy, CheckCircle, Code, HelpCircle,
-  Phone, ExternalLink, Plus, RotateCcw, Share2, CheckCheck, BellRing, FileText, Clock
+  Phone, ExternalLink, Plus, RotateCcw, Share2, CheckCheck, BellRing, FileText, Clock,
+  ChevronRight, ChevronLeft, CalendarDays, Compass
 } from "lucide-react";
 import LotteryDraw from "./LotteryDraw";
 import CycleManager from "./CycleManager";
@@ -610,6 +620,118 @@ export default function AdminPanel({
         {/* Tab 1: PAYMENTS */}
         {activeTab === "payments" && (
           <div className="space-y-4" id="admin-payments-subview">
+            {/* Shamsi Month & Accounting Period Navigator Banner */}
+            <div className="p-4 bg-white border border-teal-200/80 rounded-2xl shadow-sm flex flex-col md:flex-row items-center justify-between gap-4">
+              <div className="flex items-center gap-3 w-full md:w-auto">
+                <div className="w-10 h-10 rounded-xl bg-teal-900 text-white flex items-center justify-center shadow-md shadow-teal-900/10 shrink-0">
+                  <CalendarDays className="w-5 h-5 text-teal-200" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[11px] font-bold text-slate-500">تقویم و ماه حسابرسی مالی:</span>
+                    <span className="text-xs font-black text-teal-950 bg-teal-50 border border-teal-200 px-2 py-0.5 rounded-md">
+                      {PERS_MONTH_NAMES[settings.currentMonthIndex]} {toPersianDigits(settings.currentYear)}
+                    </span>
+                  </div>
+                  <p className="text-[10px] text-slate-500 mt-0.5">
+                    ثبت فیش‌ها، لیست وصولی‌ها، بدهکاران و محاسبات تراز بر اساس ماه انتخابی زیر انجام می‌شود.
+                  </p>
+                </div>
+              </div>
+
+              {/* Month Switcher Controls */}
+              <div className="flex flex-wrap items-center gap-2 w-full md:w-auto justify-end">
+                {/* Previous Month */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    const prev = getPrevJalaliMonth(settings.currentYear, settings.currentMonthIndex);
+                    onUpdateSettings({
+                      currentYear: prev.year,
+                      currentMonthIndex: prev.monthIndex
+                    });
+                  }}
+                  className="px-2.5 py-1.5 bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-300 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1 shadow-2xs"
+                  title="رفتن به ماه قبل"
+                >
+                  <ChevronRight className="w-4 h-4 text-slate-600" />
+                  <span>ماه قبل</span>
+                </button>
+
+                {/* Direct Month Select */}
+                <select
+                  value={settings.currentMonthIndex}
+                  onChange={(e) => {
+                    onUpdateSettings({
+                      currentMonthIndex: parseInt(e.target.value, 10)
+                    });
+                  }}
+                  className="px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg text-xs font-black text-slate-800 focus:outline-none focus:border-teal-700 cursor-pointer shadow-2xs font-sans"
+                >
+                  {PERS_MONTH_NAMES.map((mName, idx) => (
+                    <option key={idx} value={idx}>
+                      ماه {toPersianDigits(idx + 1)}: {mName}
+                    </option>
+                  ))}
+                </select>
+
+                {/* Direct Year Select */}
+                <select
+                  value={settings.currentYear}
+                  onChange={(e) => {
+                    onUpdateSettings({
+                      currentYear: parseInt(e.target.value, 10)
+                    });
+                  }}
+                  className="px-2 py-1.5 bg-white border border-slate-300 rounded-lg text-xs font-black text-slate-800 focus:outline-none focus:border-teal-700 cursor-pointer shadow-2xs font-sans"
+                >
+                  {[1403, 1404, 1405, 1406, 1407, 1408].map((yr) => (
+                    <option key={yr} value={yr}>
+                      سال {toPersianDigits(yr)}
+                    </option>
+                  ))}
+                </select>
+
+                {/* Next Month */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    const next = getNextJalaliMonth(settings.currentYear, settings.currentMonthIndex);
+                    onUpdateSettings({
+                      currentYear: next.year,
+                      currentMonthIndex: next.monthIndex
+                    });
+                  }}
+                  className="px-2.5 py-1.5 bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-300 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1 shadow-2xs"
+                  title="رفتن به ماه بعد"
+                >
+                  <span>ماه بعد</span>
+                  <ChevronLeft className="w-4 h-4 text-slate-600" />
+                </button>
+
+                {/* Go to Today Button */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    const today = getTodayJalali();
+                    onUpdateSettings({
+                      currentYear: today.year,
+                      currentMonthIndex: today.monthIndex
+                    });
+                    setPaymentDayInput(today.day);
+                    if (editingPaymentId) {
+                      setEditingPaymentDay(today.day);
+                    }
+                  }}
+                  className="px-3 py-1.5 bg-teal-800 hover:bg-teal-900 text-white rounded-lg text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 shadow-sm active:scale-95"
+                  title="تنظیم خودکار تقویم و ماه حسابرسی به تاریخ امروز"
+                >
+                  <Compass className="w-3.5 h-3.5 text-teal-200" />
+                  <span>📌 برو به امروز ({toPersianDigits(getTodayJalali().day)} {getTodayJalali().monthName})</span>
+                </button>
+              </div>
+            </div>
+
             {/* Pending Receipts Alert & Unpaid Members Notification */}
             {activeCycleMembers.some(m => payments.some(p => p.memberId === m.id && p.monthName === currentMonthName && p.status === "pending_approval")) && (
               <div className="p-3.5 bg-amber-50 border border-amber-200 rounded-xl flex flex-wrap items-center justify-between gap-3 text-xs text-amber-900 font-sans shadow-sm">
@@ -886,23 +1008,42 @@ export default function AdminPanel({
 
                                 {/* Graphical Shamsi Calendar Grid Selector for Admin */}
                                 <div className="space-y-1.5">
-                                  <label className="text-[9px] font-bold text-slate-500 block">روز دقیق واریز را جهت محاسبه تراز امتیاز انتخاب کنید:</label>
+                                  <div className="flex items-center justify-between">
+                                    <label className="text-[9px] font-bold text-slate-500 block">
+                                      روز دقیق واریز ({PERS_MONTH_NAMES[settings.currentMonthIndex]} {toPersianDigits(settings.currentYear)}):
+                                    </label>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        const today = getTodayJalali();
+                                        if (settings.currentMonthIndex !== today.monthIndex || settings.currentYear !== today.year) {
+                                          onUpdateSettings({ currentMonthIndex: today.monthIndex, currentYear: today.year });
+                                        }
+                                        setEditingPaymentDay(today.day);
+                                      }}
+                                      className="text-[9px] font-bold text-teal-800 hover:text-teal-950 bg-teal-50 hover:bg-teal-100 px-1.5 py-0.5 rounded border border-teal-200 transition-all cursor-pointer flex items-center gap-0.5"
+                                      title="تنظیم به روز جاری"
+                                    >
+                                      <span>📌 امروز ({toPersianDigits(getTodayJalali().day)})</span>
+                                    </button>
+                                  </div>
                                   <div className="grid grid-cols-7 gap-1 text-center bg-white p-2 rounded-lg border border-slate-150 shadow-inner font-sans">
                                     {["ش", "ی", "د", "س", "چ", "پ", "ج"].map((w, index) => (
                                       <span key={index} className="text-[9px] text-slate-400 font-bold py-0.5">{w}</span>
                                     ))}
-                                    {Array.from({ length: (settings.currentMonthIndex <= 5 ? 31 : (settings.currentMonthIndex <= 10 ? 30 : 29)) }, (_, idx) => {
+                                    {Array.from({ length: getDaysInJalaliMonth(settings.currentYear, settings.currentMonthIndex) }, (_, idx) => {
                                       const dayNum = idx + 1;
                                       const isSelected = editingPaymentDay === dayNum;
                                       const isEarly = dayNum <= settings.lotteryDayOfMonth;
+                                      const isToday = getTodayJalali().day === dayNum && getTodayJalali().monthIndex === settings.currentMonthIndex && getTodayJalali().year === settings.currentYear;
                                       return (
                                         <button
                                           key={dayNum}
                                           type="button"
                                           onClick={() => setEditingPaymentDay(dayNum)}
-                                          className={`h-7 rounded text-[11px] font-mono font-bold transition-all flex flex-col items-center justify-center cursor-pointer ${
+                                          className={`h-7 rounded text-[11px] font-mono font-bold transition-all flex flex-col items-center justify-center cursor-pointer relative ${
                                             isSelected 
-                                              ? "bg-teal-700 text-white font-black scale-105 shadow-sm border border-teal-800"
+                                              ? "bg-teal-700 text-white font-black scale-105 shadow-sm border border-teal-800 ring-2 ring-teal-500/50"
                                               : isEarly
                                                 ? "bg-emerald-100 hover:bg-emerald-200 text-emerald-800 border border-emerald-200"
                                                 : "bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-100"
@@ -910,6 +1051,9 @@ export default function AdminPanel({
                                           title={isEarly ? `تعجیل خوش‌حسابی (روز ${dayNum})` : `تاخیر دیرکرد (روز ${dayNum})`}
                                         >
                                           <span>{toPersianDigits(dayNum)}</span>
+                                          {isToday && !isSelected && (
+                                            <span className="w-1 h-1 rounded-full bg-teal-800 absolute bottom-0.5" />
+                                          )}
                                         </button>
                                       );
                                     })}
@@ -1034,23 +1178,42 @@ export default function AdminPanel({
 
                                     {/* Graphical Shamsi Calendar Grid Selector */}
                                     <div className="space-y-1.5">
-                                      <label className="text-[9px] font-bold text-slate-500 block">روز پرداخت را روی تقویم کلیک کنید:</label>
+                                      <div className="flex items-center justify-between">
+                                        <label className="text-[9px] font-bold text-slate-500 block">
+                                          روز پرداخت ({PERS_MONTH_NAMES[settings.currentMonthIndex]} {toPersianDigits(settings.currentYear)}):
+                                        </label>
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            const today = getTodayJalali();
+                                            if (settings.currentMonthIndex !== today.monthIndex || settings.currentYear !== today.year) {
+                                              onUpdateSettings({ currentMonthIndex: today.monthIndex, currentYear: today.year });
+                                            }
+                                            setPaymentDayInput(today.day);
+                                          }}
+                                          className="text-[9px] font-bold text-teal-800 hover:text-teal-950 bg-teal-50 hover:bg-teal-100 px-1.5 py-0.5 rounded border border-teal-200 transition-all cursor-pointer flex items-center gap-0.5"
+                                          title="تنظیم به روز جاری"
+                                        >
+                                          <span>📌 امروز ({toPersianDigits(getTodayJalali().day)})</span>
+                                        </button>
+                                      </div>
                                       <div className="grid grid-cols-7 gap-1 text-center bg-white p-2 rounded-lg border border-slate-150 shadow-inner font-sans">
                                         {["ش", "ی", "د", "س", "چ", "پ", "ج"].map((w, index) => (
                                           <span key={index} className="text-[9px] text-slate-400 font-bold py-0.5">{w}</span>
                                         ))}
-                                        {Array.from({ length: (settings.currentMonthIndex <= 5 ? 31 : (settings.currentMonthIndex <= 10 ? 30 : 29)) }, (_, idx) => {
+                                        {Array.from({ length: getDaysInJalaliMonth(settings.currentYear, settings.currentMonthIndex) }, (_, idx) => {
                                           const dayNum = idx + 1;
                                           const isSelected = paymentDayInput === dayNum;
                                           const isEarly = dayNum <= settings.lotteryDayOfMonth;
+                                          const isToday = getTodayJalali().day === dayNum && getTodayJalali().monthIndex === settings.currentMonthIndex && getTodayJalali().year === settings.currentYear;
                                           return (
                                             <button
                                               key={dayNum}
                                               type="button"
                                               onClick={() => setPaymentDayInput(dayNum)}
-                                              className={`h-7 rounded text-[11px] font-mono font-bold transition-all flex flex-col items-center justify-center cursor-pointer ${
+                                              className={`h-7 rounded text-[11px] font-mono font-bold transition-all flex flex-col items-center justify-center cursor-pointer relative ${
                                                 isSelected 
-                                                  ? "bg-teal-700 text-white font-black scale-105 shadow-sm border border-teal-800"
+                                                  ? "bg-teal-700 text-white font-black scale-105 shadow-sm border border-teal-800 ring-2 ring-teal-500/50"
                                                   : isEarly
                                                     ? "bg-emerald-100 hover:bg-emerald-200 text-emerald-800 border border-emerald-200"
                                                     : "bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-100"
@@ -1058,6 +1221,9 @@ export default function AdminPanel({
                                               title={isEarly ? `تعجیل خوش‌حسابی (روز ${dayNum})` : `تاخیر دیرکرد (روز ${dayNum})`}
                                             >
                                               <span>{toPersianDigits(dayNum)}</span>
+                                              {isToday && !isSelected && (
+                                                <span className="w-1 h-1 rounded-full bg-teal-800 absolute bottom-0.5" />
+                                              )}
                                             </button>
                                           );
                                         })}
