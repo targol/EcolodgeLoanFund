@@ -1,5 +1,5 @@
 // Cloudflare Pages Functions: /api/data
-// Supports Cloudflare KV: EcolodgeFundLoan, SANDOGH_KV, or any bound KV namespace
+// Supports Cloudflare KV: EcolodgeFundLoan or any bound KV namespace
 
 interface KVNamespace {
   get: (key: string) => Promise<string | null>;
@@ -9,7 +9,6 @@ interface KVNamespace {
 interface Env {
   EcolodgeFundLoan?: KVNamespace;
   EcolodgeLoanFund?: KVNamespace;
-  SANDOGH_KV?: KVNamespace;
   [key: string]: any;
 }
 
@@ -19,7 +18,6 @@ function getKV(env: any): KVNamespace | null {
   // Check exact names first
   if (env.EcolodgeFundLoan && typeof env.EcolodgeFundLoan.get === "function") return env.EcolodgeFundLoan;
   if (env.EcolodgeLoanFund && typeof env.EcolodgeLoanFund.get === "function") return env.EcolodgeLoanFund;
-  if (env.SANDOGH_KV && typeof env.SANDOGH_KV.get === "function") return env.SANDOGH_KV;
   // Scan all keys for any KV namespace object
   for (const key of Object.keys(env)) {
     const val = env[key];
