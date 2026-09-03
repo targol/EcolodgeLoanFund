@@ -761,9 +761,11 @@ export default function MemberPanel({
               const activeCycleSavingsDeposits = allCyclePaidPayments.length > 0
                 ? allCyclePaidPayments.reduce((sum, p) => sum + (p.savingsAmount || 0), 0)
                 : 20000000;
-              const goldProfit = settings.goldFundProfitToman !== undefined
+              const goldProfit = (settings.goldFundProfitToman !== undefined && settings.goldFundProfitToman !== null)
                 ? settings.goldFundProfitToman
-                : (settings.goldFundValueToman ? Math.max(0, settings.goldFundValueToman - activeCycleSavingsDeposits) : 3500000);
+                : (settings.goldFundValueToman && settings.goldFundValueToman > activeCycleSavingsDeposits 
+                    ? settings.goldFundValueToman - activeCycleSavingsDeposits 
+                    : 3500000);
               
               const memberPrincipal = memberShares * (activeCycle?.savingsAmount || settings.savingsAmount || 500000) * paidCount;
               const memberProfit = Math.round((goldProfit / (totalCycleShares || 10)) * memberShares);

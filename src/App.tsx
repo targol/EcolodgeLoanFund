@@ -135,17 +135,27 @@ export default function App() {
       }
     }
 
-    // 4. Settings
+    // 4. Settings with automated migration for new gold fund structure
     let loadedSettings: FundSettings = defaults.settings;
     if (savedSettingsRaw) {
       try {
         const parsed = JSON.parse(savedSettingsRaw);
         if (parsed && typeof parsed === "object") {
+          const profit = parsed.goldFundProfitToman !== undefined && parsed.goldFundProfitToman !== null
+            ? Number(parsed.goldFundProfitToman)
+            : 3500000;
+          const totalVal = (!parsed.goldFundValueToman || parsed.goldFundValueToman === 18500000 || parsed.goldFundValueToman < 20000000)
+            ? (20000000 + profit)
+            : Number(parsed.goldFundValueToman);
+
           loadedSettings = {
             ...defaults.settings,
             ...parsed,
             monthlyAmount: parsed.monthlyAmount || 5500000,
-            savingsAmount: parsed.savingsAmount || 500000
+            savingsAmount: parsed.savingsAmount || 500000,
+            goldFundProfitToman: profit,
+            goldFundValueToman: totalVal,
+            goldInvestmentNote: parsed.goldInvestmentNote || defaults.settings.goldInvestmentNote
           };
         }
       } catch (e) {
@@ -181,6 +191,17 @@ export default function App() {
 
     // Non-destructive remote sync: only merge if local is empty or remote has fresh updates
     cloudSyncService.fetchRemoteData().then(remoteData => {
+      if (!remoteData || !remoteData.settings || remoteData.settings.goldFundProfitToman === undefined) {
+        // Propagate migrated baseline to Cloudflare KV
+        cloudSyncService.saveToCloud({
+          members: loadedMembers,
+          payments: loadedPayments,
+          lotteries: loadedLotteries,
+          settings: loadedSettings,
+          cycles: loadedCycles
+        });
+      }
+
       if (remoteData && remoteData.members && Array.isArray(remoteData.members)) {
         // If local had user payments, preserve any local receipts and pending records
         setPayments(currentLocalPayments => {
@@ -200,10 +221,29 @@ export default function App() {
         });
 
         if (remoteData.settings) {
-          setSettings(curr => ({ ...curr, ...remoteData.settings }));
+          setSettings(curr => {
+            const raw = remoteData.settings;
+            const profit = raw.goldFundProfitToman !== undefined && raw.goldFundProfitToman !== null
+              ? Number(raw.goldFundProfitToman)
+              : (curr.goldFundProfitToman ?? 3500000);
+            const totalVal = (!raw.goldFundValueToman || raw.goldFundValueToman === 18500000 || raw.goldFundValueToman < 20000000)
+              ? (20000000 + profit)
+              : Number(raw.goldFundValueToman);
+
+            const updated: FundSettings = {
+              ...curr,
+              ...raw,
+              goldFundProfitToman: profit,
+              goldFundValueToman: totalVal,
+              goldInvestmentNote: raw.goldInvestmentNote || curr.goldInvestmentNote
+            };
+            localStorage.setItem("mehr_fund_settings", JSON.stringify(updated));
+            return updated;
+          });
         }
         if (remoteData.cycles && remoteData.cycles.length > 0) {
           setCycles(remoteData.cycles);
+          localStorage.setItem("mehr_fund_cycles", JSON.stringify(remoteData.cycles));
         }
       }
     });

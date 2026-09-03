@@ -50,10 +50,18 @@ export default function CycleManager({
   const [goldSaveSuccess, setGoldSaveSuccess] = useState(false);
 
   useEffect(() => {
-    if (settings.goldFundProfitToman !== undefined) {
-      setGoldProfitInput(settings.goldFundProfitToman.toString());
-    }
-    setGoldValueInput((settings.goldFundValueToman || 23500000).toString());
+    const profit = (settings.goldFundProfitToman !== undefined && settings.goldFundProfitToman !== null)
+      ? settings.goldFundProfitToman
+      : (settings.goldFundValueToman && settings.goldFundValueToman > 20000000 
+          ? settings.goldFundValueToman - 20000000 
+          : 3500000);
+    setGoldProfitInput(profit.toString());
+
+    const totalVal = (settings.goldFundValueToman && settings.goldFundValueToman >= 20000000)
+      ? settings.goldFundValueToman
+      : (20000000 + profit);
+    setGoldValueInput(totalVal.toString());
+
     setGoldNoteInput(
       settings.goldInvestmentNote || "مبالغ پس‌انداز ماهانه (۵ میلیون تومان در ماه با تکمیل فیش‌ها) در صندوق طلا سرمایه‌گذاری شده و سود و ارزش روز آن در پایان دوره تعیین خواهد شد."
     );

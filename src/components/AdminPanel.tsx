@@ -177,7 +177,8 @@ export default function AdminPanel({
           autoDrawOnFirstOfMonth: editAutoDrawOnFirst,
           adminPassword: editAdminPassword,
           logoUrl: editLogoUrl,
-          goldFundValueToman: Number(editGoldFundValue) || settings.goldFundValueToman,
+          goldFundProfitToman: Number(editGoldProfit) !== undefined && !isNaN(Number(editGoldProfit)) ? Number(editGoldProfit) : (settings.goldFundProfitToman ?? 3500000),
+          goldFundValueToman: Number(editGoldFundValue) || settings.goldFundValueToman || 23500000,
           goldInvestmentNote: editGoldInvestmentNote,
           telegramBotToken: editTelegramBotToken,
           telegramChatId: editTelegramChatId,
@@ -237,7 +238,8 @@ export default function AdminPanel({
               setEditSavingsAmount(String(parsed.settings.savingsAmount || editSavingsAmount));
               setEditLogoUrl(parsed.settings.logoUrl || "");
               setEditAdminPassword(parsed.settings.adminPassword || editAdminPassword);
-              setEditGoldFundValue(String(parsed.settings.goldFundValueToman || editGoldFundValue));
+              setEditGoldProfit(String(parsed.settings.goldFundProfitToman !== undefined ? parsed.settings.goldFundProfitToman : 3500000));
+              setEditGoldFundValue(String(parsed.settings.goldFundValueToman || 23500000));
               setEditGoldInvestmentNote(parsed.settings.goldInvestmentNote || editGoldInvestmentNote);
               setEditTelegramBotToken(parsed.settings.telegramBotToken || editTelegramBotToken);
               setEditTelegramChatId(parsed.settings.telegramChatId || editTelegramChatId);
@@ -267,7 +269,8 @@ export default function AdminPanel({
         savingsAmount: Number(editSavingsAmount) || settings.savingsAmount,
         adminPassword: editAdminPassword,
         logoUrl: editLogoUrl,
-        goldFundValueToman: Number(editGoldFundValue) || settings.goldFundValueToman,
+        goldFundProfitToman: Number(editGoldProfit) !== undefined && !isNaN(Number(editGoldProfit)) ? Number(editGoldProfit) : (settings.goldFundProfitToman ?? 3500000),
+        goldFundValueToman: Number(editGoldFundValue) || settings.goldFundValueToman || 23500000,
         goldInvestmentNote: editGoldInvestmentNote,
         telegramBotToken: editTelegramBotToken,
         telegramChatId: editTelegramChatId,
@@ -2100,6 +2103,25 @@ export default function AdminPanel({
                           نمایش در داشبورد و پنل اعضا
                         </span>
                       </div>
+                    </div>
+
+                    <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-amber-200/50">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const base = totalSavingsPaidAllTime > 0 ? totalSavingsPaidAllTime : 20000000;
+                          setEditGoldProfit("3500000");
+                          setEditGoldFundValue((base + 3500000).toString());
+                          setEditGoldInvestmentNote("مبالغ پس‌انداز ماهانه (۵ میلیون تومان در ماه با تکمیل فیش‌ها) در صندوق طلا سرمایه‌گذاری شده و سود و ارزش روز آن در پایان دوره تعیین خواهد شد.");
+                        }}
+                        className="text-[11px] font-bold text-amber-900 hover:text-amber-950 bg-amber-200/60 hover:bg-amber-200 px-2.5 py-1 rounded transition-colors flex items-center gap-1"
+                      >
+                        <RefreshCw className="w-3 h-3" />
+                        همگام‌سازی سریع با مقادیر پیشنهادی (اصل + ۳.۵ م سود)
+                      </button>
+                      <span className="text-[10px] text-amber-700">
+                        با فشردن دکمه «ذخیره تنظیمات سیستم»، داده‌ها در کلادفلر نیز به‌روز می‌شوند.
+                      </span>
                     </div>
                   </div>
 

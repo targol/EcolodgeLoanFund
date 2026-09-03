@@ -56,10 +56,10 @@ export default function FundOverview({ members, payments, lotteries, settings, c
     : (activeCycle?.accumulatedSavingsPool || 20000000);
 
   // Profit up to this moment (entered by admin or calculated from total value)
-  const goldProfitToman = settings.goldFundProfitToman !== undefined
+  const goldProfitToman = (settings.goldFundProfitToman !== undefined && settings.goldFundProfitToman !== null)
     ? settings.goldFundProfitToman
-    : (settings.goldFundValueToman 
-        ? Math.max(0, settings.goldFundValueToman - totalGoldDeposits) 
+    : (settings.goldFundValueToman && settings.goldFundValueToman > totalGoldDeposits 
+        ? settings.goldFundValueToman - totalGoldDeposits 
         : 3500000);
 
   // Total Gold Asset Value = Principal + Profit
