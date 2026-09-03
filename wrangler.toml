@@ -8,6 +8,3 @@ directory = "./dist"
 binding = "EcolodgeFundLoan"
 id = "YOUR_KV_NAMESPACE_ID"
 
-[[kv_namespaces]]
-binding = "SANDOGH_KV"
-id = "YOUR_KV_NAMESPACE_ID"

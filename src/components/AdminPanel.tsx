@@ -2217,7 +2217,7 @@ export default function AdminPanel({
                           if (json.kvBound) {
                             setBackupFeedback({
                               type: "success",
-                              msg: "✅ اتصال پایگاه داده ابری کلودفلر (SANDOGH_KV) با موفقیت تأیید شد و فعال است."
+                              msg: `✅ اتصال پایگاه داده ابری کلودفلر (${json.bindingName || "EcolodgeFundLoan"}) با موفقیت تأیید شد و فعال است.`
                             });
                           } else {
                             setBackupFeedback({
