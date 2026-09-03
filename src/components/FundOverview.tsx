@@ -55,15 +55,17 @@ export default function FundOverview({ members, payments, lotteries, settings, c
     ? accumulatedSavingsTotal 
     : (activeCycle?.accumulatedSavingsPool || 20000000);
 
-  // Profit up to this moment (entered by admin or calculated from total value)
+  // Profit up to this moment (entered manually by admin based on market valuation)
   const goldProfitToman = (settings.goldFundProfitToman !== undefined && settings.goldFundProfitToman !== null)
-    ? settings.goldFundProfitToman
+    ? Number(settings.goldFundProfitToman)
     : (settings.goldFundValueToman && settings.goldFundValueToman > totalGoldDeposits 
         ? settings.goldFundValueToman - totalGoldDeposits 
-        : 3500000);
+        : 0);
 
   // Total Gold Asset Value = Principal + Profit
   const totalGoldValue = totalGoldDeposits + goldProfitToman;
+  const hasRegisteredProfit = (settings.goldFundProfitToman !== undefined && settings.goldFundProfitToman !== null && Number(settings.goldFundProfitToman) > 0)
+    || (settings.goldFundValueToman && settings.goldFundValueToman > totalGoldDeposits);
   const goldGrowthPercent = totalGoldDeposits > 0 
     ? ((goldProfitToman / totalGoldDeposits) * 100).toFixed(1) 
     : "0";
@@ -188,7 +190,7 @@ export default function FundOverview({ members, payments, lotteries, settings, c
                 <p className="text-[11px] font-black text-amber-950 mb-1 flex items-center gap-1">
                   <span>صندوق پس‌انداز طلا (انباشته)</span>
                   <span className="text-[9px] px-1.5 py-0.2 bg-amber-200/60 text-amber-900 rounded font-bold">
-                    {toPersianDigits(goldGrowthPercent)}٪+ بازدهی
+                    {hasRegisteredProfit ? `${toPersianDigits(goldGrowthPercent)}٪+ بازدهی` : "ثبت دستی سود توسط مدیر"}
                   </span>
                 </p>
                 <div className="mt-1.5">
@@ -219,10 +221,10 @@ export default function FundOverview({ members, payments, lotteries, settings, c
 
               <div className="flex items-center justify-between text-[11px]">
                 <span className="text-emerald-800 font-medium flex items-center gap-1">
-                  <span>📈 سود تا این لحظه:</span>
+                  <span>📈 سود روز اعلامی مدیر:</span>
                 </span>
                 <span className="font-mono font-black text-emerald-700">
-                  {goldProfitToman >= 0 ? `+${formatCurrency(goldProfitToman)}` : formatCurrency(goldProfitToman)}
+                  {hasRegisteredProfit ? `+${formatCurrency(goldProfitToman)}` : (goldProfitToman === 0 ? "۰ تومان (در انتظار ثبت مدیر)" : formatCurrency(goldProfitToman))}
                 </span>
               </div>
 
@@ -232,6 +234,10 @@ export default function FundOverview({ members, payments, lotteries, settings, c
                   {formatCurrency(totalGoldValue)}
                 </span>
               </div>
+
+              <p className="text-[9px] text-amber-900/75 pt-1 leading-tight">
+                * سود سرمایه‌گذاری درصد ثابتی ندارد و در هر دوره بر اساس ارزش روز بازار توسط مدیر ثبت می‌گردد.
+              </p>
             </div>
           </motion.div>
         </div>

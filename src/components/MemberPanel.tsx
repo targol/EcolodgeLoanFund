@@ -762,10 +762,10 @@ export default function MemberPanel({
                 ? allCyclePaidPayments.reduce((sum, p) => sum + (p.savingsAmount || 0), 0)
                 : 20000000;
               const goldProfit = (settings.goldFundProfitToman !== undefined && settings.goldFundProfitToman !== null)
-                ? settings.goldFundProfitToman
+                ? Number(settings.goldFundProfitToman)
                 : (settings.goldFundValueToman && settings.goldFundValueToman > activeCycleSavingsDeposits 
                     ? settings.goldFundValueToman - activeCycleSavingsDeposits 
-                    : 3500000);
+                    : 0);
               
               const memberPrincipal = memberShares * (activeCycle?.savingsAmount || settings.savingsAmount || 500000) * paidCount;
               const memberProfit = Math.round((goldProfit / (totalCycleShares || 10)) * memberShares);
@@ -789,14 +789,16 @@ export default function MemberPanel({
                       <span className="font-mono font-bold text-slate-800">{formatCurrency(memberPrincipal)}</span>
                     </div>
                     <div className="bg-white/80 p-1.5 rounded border border-amber-100">
-                      <span className="text-emerald-700 block">📈 سود تا این لحظه:</span>
-                      <span className="font-mono font-black text-emerald-700">+{formatCurrency(memberProfit)}</span>
+                      <span className="text-emerald-700 block">📈 سود اعلامی مدیر برای سهم شما:</span>
+                      <span className="font-mono font-black text-emerald-700">
+                        {memberProfit > 0 ? `+${formatCurrency(memberProfit)}` : "در انتظار ثبت مدیر"}
+                      </span>
                     </div>
                   </div>
 
-                  <p className="text-[10px] text-amber-800 leading-tight">
+                  <p className="text-[10px] text-amber-850 leading-tight">
                     {memberShares > 1 ? `به ازای ${toPersianDigits(memberShares)} سهم شما، ` : ""}
-                    مبالغ پس‌انداز ماهانه در صندوق طلا سرمایه‌گذاری شده و تسویه/انتقال آن در پایان دوره به ارزش روز (اصل + سود) محاسبه می‌شود.
+                    مبالغ پس‌انداز ماهانه در صندوق طلا سرمایه‌گذاری شده است. نرخ سود متغیر بوده و در هر دوره بر اساس ارزش روز بازار توسط مدیر صندوق تعیین و تسویه در پایان دوره انجام خواهد شد.
                   </p>
                 </div>
               );

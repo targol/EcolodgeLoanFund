@@ -1,22 +1,25 @@
 // Cloudflare Pages Functions: /api/health
 
-interface Env {
-  SANDOGH_KV?: {
-    get: (key: string) => Promise<string | null>;
-  };
-}
+export const onRequestGet = async (context: { env: any }) => {
+  const env = context.env || {};
+  const kvName = 
+    (env.EcolodgeFundLoan && typeof env.EcolodgeFundLoan.get === "function" && "EcolodgeFundLoan") ||
+    (env.SANDOGH_KV && typeof env.SANDOGH_KV.get === "function" && "SANDOGH_KV") ||
+    (env.EcolodgeLoanFund && typeof env.EcolodgeLoanFund.get === "function" && "EcolodgeLoanFund") ||
+    Object.keys(env).find(k => env[k] && typeof env[k].get === "function");
 
-export const onRequestGet = async (context: { env: Env }) => {
-  const isKvBound = Boolean(context.env && context.env.SANDOGH_KV);
+  const isKvBound = Boolean(kvName);
+
   return new Response(
     JSON.stringify({
       status: "ok",
       platform: "cloudflare_pages",
       service: "صندوق قرض‌الحسنه و پس‌انداز حامی بومگردی",
       kvBound: isKvBound,
+      bindingName: kvName || "none",
       kvStatusMessage: isKvBound 
-        ? "✅ پایگاه داده ابری Cloudflare KV با موفقیت متصل و Bind شده است."
-        : "⚠️ متغیر SANDOGH_KV هنوز در بخش Bindings کلودفلر تعریف نشده است.",
+        ? `✅ پایگاه داده ابری Cloudflare KV با نام (${kvName}) با موفقیت متصل است.`
+        : "⚠️ نام متغیر Workers KV در بخش Settings > Functions > KV namespace bindings هنوز متصل نشده است.",
       timestamp: new Date().toISOString(),
     }),
     {

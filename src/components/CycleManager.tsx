@@ -39,10 +39,10 @@ export default function CycleManager({
 
   // Admin Gold Valuation Live Input States (Principal + Profit = Total Value)
   const [goldProfitInput, setGoldProfitInput] = useState<string>(
-    (settings.goldFundProfitToman !== undefined ? settings.goldFundProfitToman : 3500000).toString()
+    (settings.goldFundProfitToman !== undefined ? settings.goldFundProfitToman : 0).toString()
   );
   const [goldValueInput, setGoldValueInput] = useState<string>(
-    (settings.goldFundValueToman || 23500000).toString()
+    (settings.goldFundValueToman || (20000000 + (settings.goldFundProfitToman || 0))).toString()
   );
   const [goldNoteInput, setGoldNoteInput] = useState<string>(
     settings.goldInvestmentNote || "مبالغ پس‌انداز ماهانه (۵ میلیون تومان در ماه با تکمیل فیش‌ها) در صندوق طلا سرمایه‌گذاری شده و سود و ارزش روز آن در پایان دوره تعیین خواهد شد."
@@ -54,7 +54,7 @@ export default function CycleManager({
       ? settings.goldFundProfitToman
       : (settings.goldFundValueToman && settings.goldFundValueToman > 20000000 
           ? settings.goldFundValueToman - 20000000 
-          : 3500000);
+          : 0);
     setGoldProfitInput(profit.toString());
 
     const totalVal = (settings.goldFundValueToman && settings.goldFundValueToman >= 20000000)
@@ -806,9 +806,9 @@ export default function CycleManager({
                   <Coins className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="text-sm font-black text-amber-950">ثبت سود و برآورد ارزش روز دارایی طلا توسط ادمین</h3>
+                  <h3 className="text-sm font-black text-amber-950">ثبت دستی سود و برآورد ارزش روز دارایی طلا توسط ادمین</h3>
                   <p className="text-xs text-amber-800 mt-0.5">
-                    هر ماه با تکمیل فیش‌ها ۵ میلیون تومان به حساب طلا اضافه می‌شود. شما می‌توانید سود تا این لحظه یا ارزش کل دارایی را وارد کنید.
+                    ⚠️ <strong>توجه:</strong> در صندوق طلا سود سرمایه‌گذاری درصد ثابت و مشخصی ندارد و باید در هر مرتبه توسط ادمین بر اساس ارزش روز بازار وارد شود.
                   </p>
                 </div>
               </div>
@@ -828,7 +828,7 @@ export default function CycleManager({
                   <label className="block text-xs font-bold text-emerald-950 mb-1 flex items-center justify-between">
                     <span>📈 سود تا این لحظه (تومان):</span>
                     <span className="text-[10px] text-emerald-700 bg-emerald-100 px-1.5 py-0.5 rounded font-mono">
-                      {toPersianDigits(goldGrowthRatePercent)}٪ رشد
+                      {Number(goldProfitInput) > 0 ? `${toPersianDigits(goldGrowthRatePercent)}٪ رشد` : "ثبت دستی توسط ادمین"}
                     </span>
                   </label>
                   <input

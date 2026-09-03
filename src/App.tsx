@@ -143,10 +143,10 @@ export default function App() {
         if (parsed && typeof parsed === "object") {
           const profit = parsed.goldFundProfitToman !== undefined && parsed.goldFundProfitToman !== null
             ? Number(parsed.goldFundProfitToman)
-            : 3500000;
-          const totalVal = (!parsed.goldFundValueToman || parsed.goldFundValueToman === 18500000 || parsed.goldFundValueToman < 20000000)
-            ? (20000000 + profit)
-            : Number(parsed.goldFundValueToman);
+            : (parsed.goldFundValueToman && parsed.goldFundValueToman > 20000000 ? parsed.goldFundValueToman - 20000000 : 0);
+          const totalVal = (parsed.goldFundValueToman && parsed.goldFundValueToman >= 20000000)
+            ? Number(parsed.goldFundValueToman)
+            : (20000000 + profit);
 
           loadedSettings = {
             ...defaults.settings,
@@ -225,10 +225,12 @@ export default function App() {
             const raw = remoteData.settings;
             const profit = raw.goldFundProfitToman !== undefined && raw.goldFundProfitToman !== null
               ? Number(raw.goldFundProfitToman)
-              : (curr.goldFundProfitToman ?? 3500000);
-            const totalVal = (!raw.goldFundValueToman || raw.goldFundValueToman === 18500000 || raw.goldFundValueToman < 20000000)
-              ? (20000000 + profit)
-              : Number(raw.goldFundValueToman);
+              : (raw.goldFundValueToman && raw.goldFundValueToman > 20000000 
+                  ? raw.goldFundValueToman - 20000000 
+                  : (curr.goldFundProfitToman ?? 0));
+            const totalVal = (raw.goldFundValueToman && raw.goldFundValueToman >= 20000000)
+              ? Number(raw.goldFundValueToman)
+              : (20000000 + profit);
 
             const updated: FundSettings = {
               ...curr,
