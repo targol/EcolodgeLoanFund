@@ -36,8 +36,8 @@ export default function App() {
     currentMonthIndex: 5,
     currentCycleNumber: 3,
     goldInvestmentNote: "مبالغ پس‌انداز ماهانه در صندوق طلا سرمایه‌گذاری شده و سود و ارزش روز آن در پایان دوره تعیین خواهد شد.",
-    goldFundProfitToman: 3500000,
-    goldFundValueToman: 23500000,
+    goldFundProfitToman: 0,
+    goldFundValueToman: 20000000,
     adminPassword: "admin",
     telegramBotToken: "",
     telegramChatId: "",
@@ -135,18 +135,24 @@ export default function App() {
       }
     }
 
-    // 4. Settings with automated migration for new gold fund structure
+    // 4. Settings with automated migration for manual gold fund structure
     let loadedSettings: FundSettings = defaults.settings;
     if (savedSettingsRaw) {
       try {
         const parsed = JSON.parse(savedSettingsRaw);
         if (parsed && typeof parsed === "object") {
-          const profit = parsed.goldFundProfitToman !== undefined && parsed.goldFundProfitToman !== null
+          let profit = parsed.goldFundProfitToman !== undefined && parsed.goldFundProfitToman !== null
             ? Number(parsed.goldFundProfitToman)
-            : (parsed.goldFundValueToman && parsed.goldFundValueToman > 20000000 ? parsed.goldFundValueToman - 20000000 : 0);
-          const totalVal = (parsed.goldFundValueToman && parsed.goldFundValueToman >= 20000000)
+            : 0;
+          let totalVal = (parsed.goldFundValueToman && parsed.goldFundValueToman >= 20000000)
             ? Number(parsed.goldFundValueToman)
             : (20000000 + profit);
+
+          // Clear legacy hardcoded 3,500,000 profit so that fresh manual admin input is respected
+          if (profit === 3500000 && (totalVal === 23500000 || totalVal === 20000000 || !parsed.goldFundProfitManuallySet)) {
+            profit = 0;
+            totalVal = 20000000;
+          }
 
           loadedSettings = {
             ...defaults.settings,
@@ -223,12 +229,13 @@ export default function App() {
         if (remoteData.settings) {
           setSettings(curr => {
             const raw = remoteData.settings;
-            const profit = raw.goldFundProfitToman !== undefined && raw.goldFundProfitToman !== null
+            let profit = raw.goldFundProfitToman !== undefined && raw.goldFundProfitToman !== null
               ? Number(raw.goldFundProfitToman)
-              : (raw.goldFundValueToman && raw.goldFundValueToman > 20000000 
-                  ? raw.goldFundValueToman - 20000000 
-                  : (curr.goldFundProfitToman ?? 0));
-            const totalVal = (raw.goldFundValueToman && raw.goldFundValueToman >= 20000000)
+              : 0;
+            if (profit === 3500000 && (raw.goldFundValueToman === 23500000 || !raw.goldFundProfitManuallySet)) {
+              profit = 0;
+            }
+            const totalVal = (raw.goldFundValueToman && raw.goldFundValueToman >= 20000000 && profit > 0)
               ? Number(raw.goldFundValueToman)
               : (20000000 + profit);
 

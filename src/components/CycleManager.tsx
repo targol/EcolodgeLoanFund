@@ -95,6 +95,7 @@ export default function CycleManager({
       onUpdateSettings({
         goldFundProfitToman: numericProfit,
         goldFundValueToman: numericTotal,
+        goldFundProfitManuallySet: true,
         goldInvestmentNote: goldNoteInput
       });
       setGoldSaveSuccess(true);
@@ -274,7 +275,7 @@ export default function CycleManager({
   const baseSavingsDeposits = totalSavingsDeposited > 0 ? totalSavingsDeposited : 20000000;
   const currentGoldProfit = Number(goldProfitInput) !== undefined && !isNaN(Number(goldProfitInput))
     ? Number(goldProfitInput)
-    : (settings.goldFundProfitToman ?? 3500000);
+    : (settings.goldFundProfitToman ?? 0);
   const currentGoldFundValuation = baseSavingsDeposits + currentGoldProfit;
   const goldProfitToman = currentGoldProfit;
   const goldGrowthRatePercent = baseSavingsDeposits > 0 

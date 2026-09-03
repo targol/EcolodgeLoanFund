@@ -92,6 +92,7 @@ export interface FundSettings {
   goldInvestmentNote?: string;
   goldFundValueToman?: number;
   goldFundProfitToman?: number;
+  goldFundProfitManuallySet?: boolean;
   // Telegram notification settings
   telegramBotToken?: string;
   telegramChatId?: string;

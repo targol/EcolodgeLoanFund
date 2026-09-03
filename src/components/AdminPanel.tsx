@@ -336,8 +336,8 @@ export default function AdminPanel({
     setEditAutoDrawOnFirst(settings.autoDrawOnFirstOfMonth ?? true);
     setEditAdminPassword(settings.adminPassword || "admin");
     setEditLogoUrl(settings.logoUrl || "");
-    setEditGoldProfit((settings.goldFundProfitToman !== undefined ? settings.goldFundProfitToman : 3500000).toString());
-    setEditGoldFundValue((settings.goldFundValueToman || 23500000).toString());
+    setEditGoldProfit((settings.goldFundProfitToman !== undefined ? settings.goldFundProfitToman : 0).toString());
+    setEditGoldFundValue((settings.goldFundValueToman || (totalSavingsPaidAllTime > 0 ? totalSavingsPaidAllTime : 20000000)).toString());
     setEditGoldInvestmentNote(
       settings.goldInvestmentNote || "مبالغ پس‌انداز ماهانه (۵ میلیون تومان در ماه با تکمیل فیش‌ها) در صندوق طلا سرمایه‌گذاری شده و سود و ارزش روز آن در پایان دوره تعیین خواهد شد."
     );
@@ -413,6 +413,7 @@ export default function AdminPanel({
       logoUrl: editLogoUrl,
       goldFundProfitToman: Number(editGoldProfit) !== undefined && !isNaN(Number(editGoldProfit)) ? Number(editGoldProfit) : 0,
       goldFundValueToman: Number(editGoldFundValue) || ((totalSavingsPaidAllTime > 0 ? totalSavingsPaidAllTime : 20000000) + (Number(editGoldProfit) || 0)),
+      goldFundProfitManuallySet: true,
       goldInvestmentNote: editGoldInvestmentNote,
       telegramBotToken: editTelegramBotToken,
       telegramChatId: editTelegramChatId,
@@ -2114,14 +2115,14 @@ export default function AdminPanel({
                         type="button"
                         onClick={() => {
                           const base = totalSavingsPaidAllTime > 0 ? totalSavingsPaidAllTime : 20000000;
-                          setEditGoldProfit("3500000");
-                          setEditGoldFundValue((base + 3500000).toString());
+                          setEditGoldProfit("0");
+                          setEditGoldFundValue(base.toString());
                           setEditGoldInvestmentNote("مبالغ پس‌انداز ماهانه (۵ میلیون تومان در ماه با تکمیل فیش‌ها) در صندوق طلا سرمایه‌گذاری شده و سود و ارزش روز آن در پایان دوره تعیین خواهد شد.");
                         }}
                         className="text-[11px] font-bold text-amber-900 hover:text-amber-950 bg-amber-200/60 hover:bg-amber-200 px-2.5 py-1 rounded transition-colors flex items-center gap-1"
                       >
                         <RefreshCw className="w-3 h-3" />
-                        همگام‌سازی سریع با مقادیر پیشنهادی (اصل + ۳.۵ م سود)
+                        بازنشانی سود به ۰ (تراز با اصل واریزی‌ها)
                       </button>
                       <span className="text-[10px] text-amber-700">
                         با فشردن دکمه «ذخیره تنظیمات سیستم»، داده‌ها در کلادفلر نیز به‌روز می‌شوند.
