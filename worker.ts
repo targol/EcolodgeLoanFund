@@ -17,11 +17,11 @@ interface Env {
 const KV_DATA_KEY = "fund_master_data_v1";
 
 function getKV(env: Env): { kv: KVNamespace | null; name: string } {
-  if (env.EcolodgeFundLoan && typeof env.EcolodgeFundLoan.get === "function") {
-    return { kv: env.EcolodgeFundLoan, name: "EcolodgeFundLoan" };
-  }
   if (env.SANDOGH_KV && typeof env.SANDOGH_KV.get === "function") {
     return { kv: env.SANDOGH_KV, name: "SANDOGH_KV" };
+  }
+  if (env.EcolodgeFundLoan && typeof env.EcolodgeFundLoan.get === "function") {
+    return { kv: env.EcolodgeFundLoan, name: "EcolodgeFundLoan" };
   }
   if (env.EcolodgeLoanFund && typeof env.EcolodgeLoanFund.get === "function") {
     return { kv: env.EcolodgeLoanFund, name: "EcolodgeLoanFund" };

@@ -7,6 +7,7 @@ interface KVNamespace {
 }
 
 interface Env {
+  SANDOGH_KV?: KVNamespace;
   EcolodgeFundLoan?: KVNamespace;
   EcolodgeLoanFund?: KVNamespace;
   [key: string]: any;
@@ -16,6 +17,7 @@ interface Env {
 function getKV(env: any): KVNamespace | null {
   if (!env || typeof env !== "object") return null;
   // Check exact names first
+  if (env.SANDOGH_KV && typeof env.SANDOGH_KV.get === "function") return env.SANDOGH_KV;
   if (env.EcolodgeFundLoan && typeof env.EcolodgeFundLoan.get === "function") return env.EcolodgeFundLoan;
   if (env.EcolodgeLoanFund && typeof env.EcolodgeLoanFund.get === "function") return env.EcolodgeLoanFund;
   // Scan all keys for any KV namespace object

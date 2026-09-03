@@ -3,6 +3,7 @@
 export const onRequestGet = async (context: { env: any }) => {
   const env = context.env || {};
   const kvName = 
+    (env.SANDOGH_KV && typeof env.SANDOGH_KV.get === "function" && "SANDOGH_KV") ||
     (env.EcolodgeFundLoan && typeof env.EcolodgeFundLoan.get === "function" && "EcolodgeFundLoan") ||
     (env.EcolodgeLoanFund && typeof env.EcolodgeLoanFund.get === "function" && "EcolodgeLoanFund") ||
     Object.keys(env).find(k => env[k] && typeof env[k].get === "function");
