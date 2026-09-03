@@ -6,5 +6,5 @@ directory = "./dist"
 
 [[kv_namespaces]]
 binding = "EcolodgeFundLoan"
-id = "YOUR_KV_NAMESPACE_ID"
+id = "b788134e43904c45956d39857cf29e86"
 
