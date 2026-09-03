@@ -9,7 +9,4 @@ directory = "./dist"
 binding = "SANDOGH_KV"
 id = "b788134e43904c45956d39857cf29e86"
 
-[[kv_namespaces]]
-binding = "EcolodgeFundLoan"
-id = "b788134e43904c45956d39857cf29e86"
 
