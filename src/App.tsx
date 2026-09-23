@@ -26,23 +26,27 @@ export default function App() {
   const [payments, setPayments] = useState<Payment[]>([]);
   const [lotteries, setLotteries] = useState<LotteryResult[]>([]);
   const [cycles, setCycles] = useState<FundCycle[]>([]);
-  const [settings, setSettings] = useState<FundSettings>({
-    fundName: "صندوق قرض‌الحسنه و پس‌انداز حامی بومگردی",
-    monthlyAmount: 5500000,
-    savingsAmount: 500000,
-    lotteryDayOfMonth: 1,
-    autoDrawOnFirstOfMonth: true,
-    currentYear: 1405,
-    currentMonthIndex: 5,
-    currentCycleNumber: 3,
-    goldInvestmentNote: "مبالغ پس‌انداز ماهانه در صندوق طلا سرمایه‌گذاری شده و سود و ارزش روز آن در پایان دوره تعیین خواهد شد.",
-    goldFundProfitToman: 0,
-    goldFundValueToman: 20000000,
-    adminPassword: "admin",
-    telegramBotToken: "",
-    telegramChatId: "",
-    enableTelegramNotification: true,
-    telegramMessageTemplate: `🎉 <b>نتیجه قرعه‌کشی {ماه} {نام_صندوق}</b>
+  const initialToday = getTodayJalali();
+  const [settings, setSettings] = useState<FundSettings>(() => {
+    const localToken = typeof window !== "undefined" ? localStorage.getItem("mehr_fund_telegram_token") || "" : "";
+    const localChatId = typeof window !== "undefined" ? localStorage.getItem("mehr_fund_telegram_chat_id") || "" : "";
+    return {
+      fundName: "صندوق قرض‌الحسنه و پس‌انداز حامی بومگردی",
+      monthlyAmount: 5500000,
+      savingsAmount: 500000,
+      lotteryDayOfMonth: 1,
+      autoDrawOnFirstOfMonth: true,
+      currentYear: initialToday.year,
+      currentMonthIndex: initialToday.monthIndex, // Automatically syncs with current month (Mehr 1405)
+      currentCycleNumber: 3,
+      goldInvestmentNote: "مبالغ پس‌انداز ماهانه در صندوق طلا سرمایه‌گذاری شده و سود و ارزش روز آن در پایان دوره تعیین خواهد شد.",
+      goldFundProfitToman: 0,
+      goldFundValueToman: 20000000,
+      adminPassword: "admin",
+      telegramBotToken: localToken,
+      telegramChatId: localChatId,
+      enableTelegramNotification: true,
+      telegramMessageTemplate: `🎉 <b>نتیجه قرعه‌کشی {ماه} {نام_صندوق}</b>
 
 🏆 <b>برنده خوش‌شانس این دوره:</b>
 👤 <b>{نام_برنده}</b>
@@ -54,6 +58,7 @@ export default function App() {
 🎬 <i>ویدیو و شبیه‌سازی انیمیشنی قرعه‌کشی با موفقیت انجام گردید.</i>
 
 ✨ ضمن تبریک فراوان به برنده محترم، از تمامی اعضای خوش‌حساب صندوق بابت مشارکت صمیمانه سپاسگزاریم! 🙏`
+    };
   });
 
   const [isConstitutionOpen, setIsConstitutionOpen] = useState<boolean>(false);
@@ -135,8 +140,19 @@ export default function App() {
       }
     }
 
-    // 4. Settings with automated migration for manual gold fund structure
-    let loadedSettings: FundSettings = defaults.settings;
+    // 4. Settings with automated migration for manual gold fund structure and month auto-sync
+    const currentToday = getTodayJalali();
+    const localTgToken = localStorage.getItem("mehr_fund_telegram_token") || "";
+    const localTgChatId = localStorage.getItem("mehr_fund_telegram_chat_id") || "";
+
+    let loadedSettings: FundSettings = {
+      ...defaults.settings,
+      currentYear: currentToday.year,
+      currentMonthIndex: currentToday.monthIndex,
+      telegramBotToken: localTgToken,
+      telegramChatId: localTgChatId
+    };
+
     if (savedSettingsRaw) {
       try {
         const parsed = JSON.parse(savedSettingsRaw);
@@ -154,15 +170,36 @@ export default function App() {
             totalVal = 20000000;
           }
 
+          // Determine active month: if saved month was an older month (e.g. Shahrivar) and calendar has turned into Mehr, auto-advance
+          let activeYear = parsed.currentYear || currentToday.year;
+          let activeMonth = parsed.currentMonthIndex !== undefined ? parsed.currentMonthIndex : currentToday.monthIndex;
+          if (
+            currentToday.year > activeYear ||
+            (currentToday.year === activeYear && currentToday.monthIndex > activeMonth)
+          ) {
+            activeYear = currentToday.year;
+            activeMonth = currentToday.monthIndex;
+          }
+
+          const effectiveToken = parsed.telegramBotToken?.trim() || localTgToken || "";
+          const effectiveChatId = parsed.telegramChatId?.trim() || localTgChatId || "";
+
           loadedSettings = {
             ...defaults.settings,
             ...parsed,
+            currentYear: activeYear,
+            currentMonthIndex: activeMonth,
             monthlyAmount: parsed.monthlyAmount || 5500000,
             savingsAmount: parsed.savingsAmount || 500000,
             goldFundProfitToman: profit,
             goldFundValueToman: totalVal,
-            goldInvestmentNote: parsed.goldInvestmentNote || defaults.settings.goldInvestmentNote
+            goldInvestmentNote: parsed.goldInvestmentNote || defaults.settings.goldInvestmentNote,
+            telegramBotToken: effectiveToken,
+            telegramChatId: effectiveChatId
           };
+
+          if (effectiveToken) localStorage.setItem("mehr_fund_telegram_token", effectiveToken);
+          if (effectiveChatId) localStorage.setItem("mehr_fund_telegram_chat_id", effectiveChatId);
         }
       } catch (e) {
         console.error("Error parsing saved settings:", e);
@@ -195,10 +232,10 @@ export default function App() {
     localStorage.setItem("mehr_fund_settings", JSON.stringify(loadedSettings));
     localStorage.setItem("mehr_fund_cycles", JSON.stringify(loadedCycles));
 
-    // Non-destructive remote sync: only merge if local is empty or remote has fresh updates
+    // Non-destructive remote sync: only initialize if remote is completely empty
     cloudSyncService.fetchRemoteData().then(remoteData => {
-      if (!remoteData || !remoteData.settings || remoteData.settings.goldFundProfitToman === undefined) {
-        // Propagate migrated baseline to Cloudflare KV
+      if (!remoteData || !remoteData.settings) {
+        // First-time sync to empty Cloudflare KV
         cloudSyncService.saveToCloud({
           members: loadedMembers,
           payments: loadedPayments,
@@ -206,6 +243,7 @@ export default function App() {
           settings: loadedSettings,
           cycles: loadedCycles
         });
+        return;
       }
 
       if (remoteData && remoteData.members && Array.isArray(remoteData.members)) {
@@ -239,9 +277,37 @@ export default function App() {
               ? Number(raw.goldFundValueToman)
               : (20000000 + profit);
 
+            // Safely preserve Telegram Bot Token & API key from remote OR local
+            const effectiveToken = raw.telegramBotToken?.trim() || 
+                                   curr.telegramBotToken?.trim() || 
+                                   localStorage.getItem("mehr_fund_telegram_token") || 
+                                   "";
+            const effectiveChatId = raw.telegramChatId?.trim() || 
+                                    curr.telegramChatId?.trim() || 
+                                    localStorage.getItem("mehr_fund_telegram_chat_id") || 
+                                    "";
+
+            if (effectiveToken) localStorage.setItem("mehr_fund_telegram_token", effectiveToken);
+            if (effectiveChatId) localStorage.setItem("mehr_fund_telegram_chat_id", effectiveChatId);
+
+            // Auto-advance month if remote had an older month and today has reached Mehr or later
+            let activeYear = raw.currentYear ?? curr.currentYear;
+            let activeMonth = raw.currentMonthIndex ?? curr.currentMonthIndex;
+            if (
+              currentToday.year > activeYear ||
+              (currentToday.year === activeYear && currentToday.monthIndex > activeMonth)
+            ) {
+              activeYear = currentToday.year;
+              activeMonth = currentToday.monthIndex;
+            }
+
             const updated: FundSettings = {
               ...curr,
               ...raw,
+              currentYear: activeYear,
+              currentMonthIndex: activeMonth,
+              telegramBotToken: effectiveToken,
+              telegramChatId: effectiveChatId,
               goldFundProfitToman: profit,
               goldFundValueToman: totalVal,
               goldInvestmentNote: raw.goldInvestmentNote || curr.goldInvestmentNote
@@ -302,6 +368,14 @@ export default function App() {
     localStorage.setItem("mehr_fund_payments", JSON.stringify(newPayments));
     localStorage.setItem("mehr_fund_lotteries", JSON.stringify(newLotteries));
     localStorage.setItem("mehr_fund_settings", JSON.stringify(newSettings));
+
+    // Save dedicated Telegram API key backups
+    if (newSettings.telegramBotToken?.trim()) {
+      localStorage.setItem("mehr_fund_telegram_token", newSettings.telegramBotToken.trim());
+    }
+    if (newSettings.telegramChatId?.trim()) {
+      localStorage.setItem("mehr_fund_telegram_chat_id", newSettings.telegramChatId.trim());
+    }
 
     // Save to Cloudflare API / Cloud storage asynchronously
     cloudSyncService.saveToCloud({
@@ -819,7 +893,19 @@ export default function App() {
 
   // Update Settings
   const handleUpdateSettings = (newSettings: Partial<FundSettings>) => {
-    const updatedSettings = { ...settings, ...newSettings };
+    const effectiveToken = newSettings.telegramBotToken !== undefined
+      ? (newSettings.telegramBotToken || "")
+      : (settings.telegramBotToken || localStorage.getItem("mehr_fund_telegram_token") || "");
+    const effectiveChatId = newSettings.telegramChatId !== undefined
+      ? (newSettings.telegramChatId || "")
+      : (settings.telegramChatId || localStorage.getItem("mehr_fund_telegram_chat_id") || "");
+
+    const updatedSettings = { 
+      ...settings, 
+      ...newSettings,
+      telegramBotToken: effectiveToken,
+      telegramChatId: effectiveChatId
+    };
     
     // Also propagate changes (like monthlyAmount, savingsAmount, goldInvestmentNote) to the currently active cycle
     let updatedCycles = cycles.map(c => {

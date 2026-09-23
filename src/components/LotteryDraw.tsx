@@ -323,10 +323,13 @@ export default function LotteryDraw({
     const winnerName = winnerNameOverride || simulationWinnerName;
     if (!winnerName) return;
 
-    if (!settings.telegramBotToken || !settings.telegramChatId) {
+    const botToken = settings.telegramBotToken?.trim() || localStorage.getItem("mehr_fund_telegram_token")?.trim() || "";
+    const chatId = settings.telegramChatId?.trim() || localStorage.getItem("mehr_fund_telegram_chat_id")?.trim() || "";
+
+    if (!botToken || !chatId) {
       setTelegramSendStatus({
         loading: false,
-        error: "توکن ربات تلگرام یا Chat ID تنظیم نشده است (در تب پیام‌رسانی یا تنظیمات وارد کنید)."
+        error: "توکن اختصاصی ربات تلگرام (API Key) یا Chat ID تنظیم نشده است (در تب اطلاع‌رسانی وارد و ذخیره فرمایید)."
       });
       return;
     }
@@ -345,7 +348,7 @@ export default function LotteryDraw({
       }
     );
 
-    const res = await sendTelegramMessage(settings.telegramBotToken, settings.telegramChatId, msgText);
+    const res = await sendTelegramMessage(botToken, chatId, msgText);
     if (res.success) {
       setTelegramSendStatus({ loading: false, success: true });
     } else {
@@ -360,10 +363,13 @@ export default function LotteryDraw({
       return;
     }
 
-    if (!settings.telegramBotToken || !settings.telegramChatId) {
+    const botToken = settings.telegramBotToken?.trim() || localStorage.getItem("mehr_fund_telegram_token")?.trim() || "";
+    const chatId = settings.telegramChatId?.trim() || localStorage.getItem("mehr_fund_telegram_chat_id")?.trim() || "";
+
+    if (!botToken || !chatId) {
       setTelegramVideoStatus({
         loading: false,
-        error: "توکن ربات تلگرام یا Chat ID گروه تنظیم نشده است."
+        error: "توکن اختصاصی ربات تلگرام (API Key) یا Chat ID گروه تنظیم نشده است."
       });
       return;
     }
@@ -377,8 +383,8 @@ export default function LotteryDraw({
       `🎉 با آرزوی برکت و بهترین‌ها برای برنده گرامی! ✨`;
 
     const res = await sendTelegramVideo(
-      settings.telegramBotToken,
-      settings.telegramChatId,
+      botToken,
+      chatId,
       videoState.videoBlob,
       caption,
       videoState.fileName || "lottery-draw.webm"

@@ -111,14 +111,14 @@ export function getDaysInJalaliMonth(year: number, monthIndex: number): number {
 export function getTodayJalali(): { year: number; monthIndex: number; day: number; monthName: string; formatted: string } {
   const [jyStr, jmStr, jdStr] = gregorianToJalali(new Date()).split("/");
   const year = parseInt(jyStr, 10) || 1405;
-  const month = parseInt(jmStr, 10) || 6;
+  const month = parseInt(jmStr, 10) || 7;
   const day = parseInt(jdStr, 10) || 1;
   const monthIndex = Math.max(0, Math.min(11, month - 1));
   return {
     year,
     monthIndex,
     day,
-    monthName: PERS_MONTH_NAMES[monthIndex] || "شهریور",
+    monthName: PERS_MONTH_NAMES[monthIndex] || "مهر",
     formatted: `${year}/${String(month).padStart(2, '0')}/${String(day).padStart(2, '0')}`
   };
 }
@@ -184,6 +184,7 @@ export function getInitialMockData(): {
   settings: FundSettings;
   cycles: FundCycle[];
 } {
+  const today = getTodayJalali();
   const settings: FundSettings = {
     fundName: "صندوق قرض‌الحسنه و پس‌انداز حامی بومگردی",
     monthlyAmount: 5500000, // 5,500,000 Toman Core Installment
@@ -191,8 +192,8 @@ export function getInitialMockData(): {
     currentCycleNumber: 3,  // Currently in Round 3
     lotteryDayOfMonth: 1,   // Automatic lottery on 1st day of month
     autoDrawOnFirstOfMonth: true,
-    currentYear: 1405,
-    currentMonthIndex: 5,   // Shahrivar 1405 (index 5)
+    currentYear: today.year,
+    currentMonthIndex: today.monthIndex, // Active current month (Mehr 1405, index 6)
     adminPassword: "admin",
     goldInvestmentNote: "مبالغ پس‌انداز ماهانه (۵۰۰,۰۰۰ تومان در ماه به ازای هر سهم = ۵ میلیون تومان در ماه) در صندوق طلا سرمایه‌گذاری شده است. ارزش روز، سود انباشته و میزان نهایی دارایی در پایان دوره محاسبه و در مورد نحوه انتقال آن تصمیم‌گیری خواهد شد.",
     goldFundProfitToman: 0, // Manual profit entered by admin based on day valuation (0 until entered)

@@ -486,8 +486,12 @@ export default function CycleManager({
                       </span>
                     )}
                   </div>
-                  <p className="text-xs text-slate-500 mt-1">
-                    بازه زمانی: {currentCycle.startShamsiDate} تا {currentCycle.endShamsiDate || "نامشخص"} • مدت دوره: {toPersianDigits(currentCycle.totalMonths)} ماه
+                  <p className="text-xs text-slate-500 mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
+                    <span>بازه زمانی: {currentCycle.startShamsiDate} تا {currentCycle.endShamsiDate || "نامشخص"}</span>
+                    <span>• مدت دوره: {toPersianDigits(currentCycle.totalMonths)} ماه</span>
+                    <span className="font-bold text-teal-850 bg-teal-50 px-2 py-0.5 rounded border border-teal-200">
+                      📅 ماه جاری صندوق: {PERS_MONTH_NAMES[settings.currentMonthIndex]} {toPersianDigits(settings.currentYear)}
+                    </span>
                   </p>
                 </div>
 

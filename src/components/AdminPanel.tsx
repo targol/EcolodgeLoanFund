@@ -293,8 +293,13 @@ export default function AdminPanel({
   );
 
   // Telegram Integration States
-  const [editTelegramBotToken, setEditTelegramBotToken] = useState<string>(settings.telegramBotToken || "");
-  const [editTelegramChatId, setEditTelegramChatId] = useState<string>(settings.telegramChatId || "");
+  const [editTelegramBotToken, setEditTelegramBotToken] = useState<string>(() => {
+    return settings.telegramBotToken || (typeof window !== "undefined" ? localStorage.getItem("mehr_fund_telegram_token") || "" : "");
+  });
+  const [editTelegramChatId, setEditTelegramChatId] = useState<string>(() => {
+    return settings.telegramChatId || (typeof window !== "undefined" ? localStorage.getItem("mehr_fund_telegram_chat_id") || "" : "");
+  });
+  const [showBotToken, setShowBotToken] = useState<boolean>(false);
   const [editEnableTelegram, setEditEnableTelegram] = useState<boolean>(settings.enableTelegramNotification ?? true);
   const [editTelegramMessageTemplate, setEditTelegramMessageTemplate] = useState<string>(
     settings.telegramMessageTemplate || DEFAULT_TELEGRAM_TEMPLATE
@@ -302,10 +307,13 @@ export default function AdminPanel({
   const [telegramTestStatus, setTelegramTestStatus] = useState<{ type: "idle" | "loading" | "success" | "error"; msg?: string }>({ type: "idle" });
 
   const handleTestTelegram = async () => {
-    if (!editTelegramBotToken || !editTelegramChatId) {
+    const botToken = editTelegramBotToken?.trim() || settings.telegramBotToken?.trim() || (typeof window !== "undefined" ? localStorage.getItem("mehr_fund_telegram_token")?.trim() || "" : "");
+    const chatId = editTelegramChatId?.trim() || settings.telegramChatId?.trim() || (typeof window !== "undefined" ? localStorage.getItem("mehr_fund_telegram_chat_id")?.trim() || "" : "");
+
+    if (!botToken || !chatId) {
       setTelegramTestStatus({
         type: "error",
-        msg: "لطفاً توکن ربات تلگرام و Chat ID گروه را وارد کنید."
+        msg: "لطفاً توکن اختصاصی ربات تلگرام (API Key) و Chat ID گروه را وارد کنید."
       });
       return;
     }
@@ -319,7 +327,7 @@ export default function AdminPanel({
       loanTypeStr: "وام اصلی (پیام آزمایشی ارسال سیستم)"
     });
 
-    const res = await sendTelegramMessage(editTelegramBotToken, editTelegramChatId, testMsg);
+    const res = await sendTelegramMessage(botToken, chatId, testMsg);
     if (res.success) {
       setTelegramTestStatus({ type: "success", msg: "پیام آزمایشی با موفقیت به گروه تلگرام ارسال شد! 🎉" });
     } else {
@@ -341,8 +349,14 @@ export default function AdminPanel({
     setEditGoldInvestmentNote(
       settings.goldInvestmentNote || "مبالغ پس‌انداز ماهانه (۵ میلیون تومان در ماه با تکمیل فیش‌ها) در صندوق طلا سرمایه‌گذاری شده و سود و ارزش روز آن در پایان دوره تعیین خواهد شد."
     );
-    setEditTelegramBotToken(settings.telegramBotToken || "");
-    setEditTelegramChatId(settings.telegramChatId || "");
+    const effToken = settings.telegramBotToken?.trim() || (typeof window !== "undefined" ? localStorage.getItem("mehr_fund_telegram_token") || "" : "");
+    const effChatId = settings.telegramChatId?.trim() || (typeof window !== "undefined" ? localStorage.getItem("mehr_fund_telegram_chat_id") || "" : "");
+    if (effToken) {
+      setEditTelegramBotToken(effToken);
+    }
+    if (effChatId) {
+      setEditTelegramChatId(effChatId);
+    }
     setEditEnableTelegram(settings.enableTelegramNotification ?? true);
     setEditTelegramMessageTemplate(settings.telegramMessageTemplate || DEFAULT_TELEGRAM_TEMPLATE);
     if (settings.messageTemplates && settings.messageTemplates.length > 0) {
@@ -355,13 +369,13 @@ export default function AdminPanel({
   const [standaloneSendStatus, setStandaloneSendStatus] = useState<{ type: "idle" | "loading" | "success" | "error"; msg?: string }>({ type: "idle" });
 
   const handleSendStandaloneTelegram = async () => {
-    const botToken = editTelegramBotToken || settings.telegramBotToken;
-    const chatId = editTelegramChatId || settings.telegramChatId;
+    const botToken = editTelegramBotToken?.trim() || settings.telegramBotToken?.trim() || (typeof window !== "undefined" ? localStorage.getItem("mehr_fund_telegram_token")?.trim() || "" : "");
+    const chatId = editTelegramChatId?.trim() || settings.telegramChatId?.trim() || (typeof window !== "undefined" ? localStorage.getItem("mehr_fund_telegram_chat_id")?.trim() || "" : "");
 
     if (!botToken || !chatId) {
       setStandaloneSendStatus({
         type: "error",
-        msg: "لطفاً ابتدا توکن ربات تلگرام و Chat ID گروه را در فیلدهای بالا وارد کنید."
+        msg: "لطفاً ابتدا توکن ربات تلگرام (API Key) و Chat ID گروه را در فیلدهای بالا وارد کنید."
       });
       return;
     }
@@ -403,6 +417,16 @@ export default function AdminPanel({
   const totalAmountToCalculateScore = settings.monthlyAmount + (settings.savingsAmount || 500000);
 
   const handleSaveSettings = () => {
+    const effToken = editTelegramBotToken?.trim() || settings.telegramBotToken?.trim() || (typeof window !== "undefined" ? localStorage.getItem("mehr_fund_telegram_token")?.trim() || "" : "");
+    const effChatId = editTelegramChatId?.trim() || settings.telegramChatId?.trim() || (typeof window !== "undefined" ? localStorage.getItem("mehr_fund_telegram_chat_id")?.trim() || "" : "");
+
+    if (effToken && typeof window !== "undefined") {
+      localStorage.setItem("mehr_fund_telegram_token", effToken);
+    }
+    if (effChatId && typeof window !== "undefined") {
+      localStorage.setItem("mehr_fund_telegram_chat_id", effChatId);
+    }
+
     onUpdateSettings({
       fundName: editFundName,
       monthlyAmount: Number(editPriceAmount),
@@ -415,12 +439,12 @@ export default function AdminPanel({
       goldFundValueToman: Number(editGoldFundValue) || ((totalSavingsPaidAllTime > 0 ? totalSavingsPaidAllTime : 20000000) + (Number(editGoldProfit) || 0)),
       goldFundProfitManuallySet: true,
       goldInvestmentNote: editGoldInvestmentNote,
-      telegramBotToken: editTelegramBotToken,
-      telegramChatId: editTelegramChatId,
+      telegramBotToken: effToken,
+      telegramChatId: effChatId,
       enableTelegramNotification: editEnableTelegram,
       telegramMessageTemplate: editTelegramMessageTemplate,
     });
-    alert("تنظیمات عمومی، ارزش صندوق طلا، لوگو و اطلاع‌رسانی با موفقیت ذخیره گردید!");
+    alert("تنظیمات عمومی، ارزش صندوق طلا، لوگو و کلید اختصاصی API ربات با موفقیت ذخیره گردید!");
   };
   const totalSavingsPaidAllTime = payments
     .filter(p => p.status === "paid")
@@ -2809,14 +2833,17 @@ export default function AdminPanel({
                       <button
                         type="button"
                         onClick={async () => {
-                          if (!editTelegramBotToken.trim() || !editTelegramChatId.trim()) {
-                            alert("لطفاً توکن ربات و آیدی چت تلگرام را در تب «تنظیمات ربات» وارد نمایید.");
+                          const botToken = editTelegramBotToken?.trim() || settings.telegramBotToken?.trim() || (typeof window !== "undefined" ? localStorage.getItem("mehr_fund_telegram_token")?.trim() || "" : "");
+                          const chatId = editTelegramChatId?.trim() || settings.telegramChatId?.trim() || (typeof window !== "undefined" ? localStorage.getItem("mehr_fund_telegram_chat_id")?.trim() || "" : "");
+
+                          if (!botToken || !chatId) {
+                            alert("لطفاً توکن اختصاصی ربات (API Token) و آیدی چت تلگرام را در تب «تنظیمات ربات» وارد و ذخیره نمایید.");
                             setMessagingSubTab("settings");
                             return;
                           }
                           setStandaloneSendStatus({ type: "loading", msg: "در حال ارسال پیام به گروه تلگرام..." });
                           const finalMsg = getDynamicMessageFor(messageTarget);
-                          const result = await sendTelegramMessage(editTelegramBotToken, editTelegramChatId, finalMsg);
+                          const result = await sendTelegramMessage(botToken, chatId, finalMsg);
                           if (result.success) {
                             setStandaloneSendStatus({ type: "success", msg: "پیام با موفقیت به گروه تلگرام ارسال گردید!" });
                           } else {
@@ -3138,35 +3165,83 @@ export default function AdminPanel({
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 font-sans">
                     <div>
-                      <label className="block text-[11px] font-bold text-slate-600 mb-1 flex items-center gap-1">
-                        <Bot className="w-3.5 h-3.5 text-sky-600" />
-                        <span>توکن اختصاصی ربات تلگرام (Bot Token)</span>
-                      </label>
-                      <input
-                        type="text"
-                        placeholder="123456789:AAG..."
-                        value={editTelegramBotToken}
-                        onChange={(e) => setEditTelegramBotToken(e.target.value)}
-                        className="w-full p-2.5 border border-slate-250 bg-white text-slate-800 font-mono text-xs rounded focus:outline-none focus:border-sky-500"
-                        dir="ltr"
-                      />
-                      <span className="text-[10px] text-slate-400 mt-1 block">دریافت شده از ربات BotFather@ تلگرام</span>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="text-[11px] font-bold text-slate-700 flex items-center gap-1">
+                          <Bot className="w-3.5 h-3.5 text-sky-600" />
+                          <span>توکن اختصاصی ربات تلگرام (Bot API Token / Key)</span>
+                        </label>
+                        {editTelegramBotToken.trim() ? (
+                          <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                            <CheckCircle className="w-3 h-3 text-emerald-600" />
+                            <span>ذخیره و فعال</span>
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
+                            <AlertCircle className="w-3 h-3 text-amber-600" />
+                            <span>ثبت نشده</span>
+                          </span>
+                        )}
+                      </div>
+                      <div className="relative">
+                        <input
+                          type={showBotToken ? "text" : "password"}
+                          placeholder="123456789:AAG..."
+                          value={editTelegramBotToken}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setEditTelegramBotToken(val);
+                            if (typeof window !== "undefined") {
+                              localStorage.setItem("mehr_fund_telegram_token", val.trim());
+                            }
+                          }}
+                          className="w-full p-2.5 pl-9 border border-slate-250 bg-white text-slate-800 font-mono text-xs rounded focus:outline-none focus:border-sky-500 shadow-2xs"
+                          dir="ltr"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowBotToken(!showBotToken)}
+                          className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5 cursor-pointer"
+                          title={showBotToken ? "مخفی کردن کلید" : "نمایش کلید API"}
+                        >
+                          {showBotToken ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        </button>
+                      </div>
+                      <span className="text-[10px] text-slate-500 mt-1 block">دریافت شده از ربات BotFather@ تلگرام (API Key)</span>
                     </div>
 
                     <div>
-                      <label className="block text-[11px] font-bold text-slate-600 mb-1 flex items-center gap-1">
-                        <MessageSquare className="w-3.5 h-3.5 text-sky-600" />
-                        <span>شناسه چت یا آیدی گروه (Chat ID / Username)</span>
-                      </label>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="text-[11px] font-bold text-slate-700 flex items-center gap-1">
+                          <MessageSquare className="w-3.5 h-3.5 text-sky-600" />
+                          <span>شناسه چت یا آیدی گروه (Chat ID / Username)</span>
+                        </label>
+                        {editTelegramChatId.trim() ? (
+                          <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                            <CheckCircle className="w-3 h-3 text-emerald-600" />
+                            <span>ثبت شده</span>
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
+                            <AlertCircle className="w-3 h-3 text-amber-600" />
+                            <span>ثبت نشده</span>
+                          </span>
+                        )}
+                      </div>
                       <input
                         type="text"
                         placeholder="-100123456789 یا @my_fund_channel"
                         value={editTelegramChatId}
-                        onChange={(e) => setEditTelegramChatId(e.target.value)}
-                        className="w-full p-2.5 border border-slate-250 bg-white text-slate-800 font-mono text-xs rounded focus:outline-none focus:border-sky-500"
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setEditTelegramChatId(val);
+                          if (typeof window !== "undefined") {
+                            localStorage.setItem("mehr_fund_telegram_chat_id", val.trim());
+                          }
+                        }}
+                        className="w-full p-2.5 border border-slate-250 bg-white text-slate-800 font-mono text-xs rounded focus:outline-none focus:border-sky-500 shadow-2xs"
                         dir="ltr"
                       />
-                      <span className="text-[10px] text-slate-400 mt-1 block">آیدی عددی منفی یا یوزرنام کانال/گروه تلگرام</span>
+                      <span className="text-[10px] text-slate-500 mt-1 block">آیدی عددی منفی گروه تلگرام یا یوزرنام کانال</span>
                     </div>
                   </div>
 
