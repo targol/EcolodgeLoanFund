@@ -9,7 +9,9 @@ import {
   getTodayJalali,
   getPrevJalaliMonth,
   getNextJalaliMonth,
-  sortLotteriesChronologically
+  sortLotteriesChronologically,
+  getLotterySortOrder,
+  toEnglishDigits
 } from "../utils/jalali";
 import { 
   sendTelegramMessage, 
@@ -148,12 +150,32 @@ export default function AdminPanel({
   const [newTplContent, setNewTplContent] = useState("");
   const [newTplCategory, setNewTplCategory] = useState<MessageTemplate["category"]>("custom");
 
+  // Chronologically sorted lotteries directly based on drawDateShamsi field from lotteries objects
+  const chronoSortedLotteries = sortLotteriesChronologically(lotteries || [], true);
+  const chronoSortedLotteriesDesc = sortLotteriesChronologically(lotteries || [], false);
+
+  // Helper to extract member's winning lottery and draw date directly from lotteries
+  const getMemberLotteryInfo = (memberId: string) => {
+    const memMainLot = chronoSortedLotteriesDesc.find(l => l.winnerId === memberId && (l.loanType === "main" || !l.loanType));
+    const memAnyLot = memMainLot || chronoSortedLotteriesDesc.find(l => l.winnerId === memberId);
+    const memEmergLot = chronoSortedLotteriesDesc.find(l => l.winnerId === memberId && l.loanType === "emergency");
+
+    return {
+      mainLottery: memMainLot || memAnyLot,
+      emergencyLottery: memEmergLot,
+      mainDrawDate: (memMainLot || memAnyLot)?.drawDateShamsi,
+      mainMonthName: (memMainLot || memAnyLot)?.monthName,
+      emergencyDrawDate: memEmergLot?.drawDateShamsi,
+      emergencyMonthName: memEmergLot?.monthName
+    };
+  };
+
   // Active cycle gold base calculation: 5 completed months * 10 shares * 500k = 25,000,000
   const activeCycleNum = activeCycle?.cycleNumber || settings.currentCycleNumber || 3;
   const activeCycleTotalShares = activeCycle
     ? activeCycle.memberIds.reduce((sum, mId) => sum + (activeCycle.memberShares?.[mId] || 1), 0)
     : 10;
-  const cycleLotteriesList = lotteries.filter(l => l.cycleNumber === activeCycleNum || (!l.cycleNumber && activeCycle?.status === "active"));
+  const cycleLotteriesList = chronoSortedLotteries.filter(l => l.cycleNumber === activeCycleNum || (!l.cycleNumber && activeCycle?.status === "active"));
   const cycleCompletedMonths = Math.max(
     cycleLotteriesList.filter(l => l.loanType === "main" || !l.loanType).length,
     activeCycle?.pastWinners?.length || 0,
@@ -510,15 +532,15 @@ export default function AdminPanel({
     const savAmt = (activeCycle?.savingsAmount || settings.savingsAmount || 500000) * shares;
     const totAmt = instAmt + savAmt;
     
-    // Find last winner for {نام_برنده} from chronologically sorted lotteries
-    const sortedMainLotteries = sortLotteriesChronologically(
-      (lotteries || []).filter(l => l.loanType === "main" || !l.loanType),
-      true
-    );
-    const lastLottery = sortedMainLotteries.length > 0 ? sortedMainLotteries[sortedMainLotteries.length - 1] : undefined;
+    // Find last winner for {نام_برنده} from chronologically sorted lotteries directly based on drawDateShamsi
+    const sortedMainLotteries = chronoSortedLotteries.filter(l => l.loanType === "main" || !l.loanType);
+    const memberSpecificLottery = (target === "single" && targetMember)
+      ? ([...sortedMainLotteries].reverse().find(l => l.winnerId === targetMember?.id))
+      : undefined;
+    const lastLottery = memberSpecificLottery || (sortedMainLotteries.length > 0 ? sortedMainLotteries[sortedMainLotteries.length - 1] : undefined);
     const lastWinnerMember = lastLottery ? members.find(m => m.id === lastLottery.winnerId) : undefined;
     const winnerNameResolved = lastLottery?.winnerName || lastWinnerMember?.name || (targetMember ? targetMember.name : "نام عضو برنده");
-    const winnerMonthResolved = lastLottery?.monthName || currentMonthName;
+    const winnerMonthResolved = lastLottery?.monthName || (lastLottery?.drawDateShamsi ? lastLottery.drawDateShamsi : currentMonthName);
     const winnerDateResolved = lastLottery?.drawDateShamsi || `${settings.currentYear}/${String(settings.currentMonthIndex + 1).padStart(2, '0')}/${toPersianDigits(editLotteryDayOfMonth || 1)}`;
 
     return formatTelegramMessage(tpl, {
@@ -575,6 +597,15 @@ export default function AdminPanel({
     if (lotteryFilter === "not_won") return isMemberActiveInCycle && !member.hasWon;
     if (lotteryFilter === "previously_won") return member.hasWon;
     return true;
+  }).sort((a, b) => {
+    if (lotteryFilter === "previously_won") {
+      const lotA = chronoSortedLotteries.find(l => l.winnerId === a.id);
+      const lotB = chronoSortedLotteries.find(l => l.winnerId === b.id);
+      const orderA = lotA ? getLotterySortOrder(lotA) : 99999999;
+      const orderB = lotB ? getLotterySortOrder(lotB) : 99999999;
+      return orderA - orderB;
+    }
+    return 0;
   });
 
   return (
@@ -980,11 +1011,23 @@ export default function AdminPanel({
                               </div>
                               <div className="flex flex-wrap gap-1 mt-0.5">
                                 {member.hasWon && (() => {
-                                  const memLot = lotteries.find(l => l.winnerId === member.id && (l.loanType === "main" || !l.loanType));
-                                  const winLabel = memLot ? `${memLot.monthName}${memLot.drawDateShamsi ? ` (${memLot.drawDateShamsi})` : ""}` : member.winMonth;
+                                  const { mainLottery, mainDrawDate, mainMonthName } = getMemberLotteryInfo(member.id);
+                                  const winMonthDisplay = mainMonthName || member.winMonth;
+                                  const winLabel = mainLottery 
+                                    ? `${winMonthDisplay ? `${winMonthDisplay}` : ""}${mainDrawDate ? ` (${mainDrawDate})` : ""}` 
+                                    : (member.winMonth || "برنده وام");
                                   return (
                                     <span className="bg-slate-100 text-[9px] px-1.5 py-0.2 rounded border border-slate-200 mr-1 inline-block text-slate-600 font-bold">
                                       برنده وام اصلی ({winLabel})
+                                    </span>
+                                  );
+                                })()}
+                                {(() => {
+                                  const { emergencyLottery, emergencyDrawDate, emergencyMonthName } = getMemberLotteryInfo(member.id);
+                                  if (!emergencyLottery) return null;
+                                  return (
+                                    <span className="bg-blue-50 text-blue-800 text-[9px] px-1.5 py-0.2 rounded border border-blue-200 mr-1 inline-block font-bold">
+                                      برنده وام ضروری ({emergencyMonthName || ""}{emergencyDrawDate ? ` (${emergencyDrawDate})` : ""})
                                     </span>
                                   );
                                 })()}
@@ -1760,12 +1803,22 @@ export default function AdminPanel({
 
                           <div className="flex flex-col gap-1 text-left shrink-0">
                             {member.hasWon ? (() => {
-                              const memLot = lotteries.find(l => l.winnerId === member.id && (l.loanType === "main" || !l.loanType));
-                              const winLabel = memLot ? `${memLot.monthName}${memLot.drawDateShamsi ? ` - ${memLot.drawDateShamsi}` : ""}` : (member.winMonth || "برنده وام");
+                              const { mainLottery, mainDrawDate, mainMonthName, emergencyLottery, emergencyDrawDate, emergencyMonthName } = getMemberLotteryInfo(member.id);
+                              const winMonthDisplay = mainMonthName || member.winMonth;
+                              const winLabel = mainLottery 
+                                ? `${winMonthDisplay ? `${winMonthDisplay}` : ""}${mainDrawDate ? ` - ${mainDrawDate}` : ""}` 
+                                : (member.winMonth || "برنده وام");
                               return (
-                                <span className="bg-teal-50 text-teal-800 text-[9px] px-2 py-0.5 rounded font-black border border-teal-100">
-                                  برنده وام ({winLabel})
-                                </span>
+                                <div className="flex flex-col gap-1 items-end">
+                                  <span className="bg-teal-50 text-teal-800 text-[9px] px-2 py-0.5 rounded font-black border border-teal-100">
+                                    برنده وام اصلی ({winLabel})
+                                  </span>
+                                  {emergencyLottery && (
+                                    <span className="bg-blue-50 text-blue-800 text-[9px] px-2 py-0.5 rounded font-black border border-blue-100">
+                                      برنده وام ضروری ({emergencyMonthName || ""}{emergencyDrawDate ? ` - ${emergencyDrawDate}` : ""})
+                                    </span>
+                                  )}
+                                </div>
                               );
                             })() : (
                               <span className="bg-amber-50 text-amber-700 text-[9px] px-2 py-0.5 rounded font-black border border-amber-100">
@@ -1934,7 +1987,7 @@ export default function AdminPanel({
             cycles={cycles}
             members={members}
             payments={payments}
-            lotteries={lotteries}
+            lotteries={chronoSortedLotteries}
             settings={settings}
             onAddCycle={onAddCycle || (() => {})}
             onUpdateCycle={onUpdateCycle || (() => {})}
@@ -1949,7 +2002,7 @@ export default function AdminPanel({
           <LotteryDraw 
             members={activeCycleMembers}
             settings={settings}
-            lotteries={lotteries}
+            lotteries={chronoSortedLotteries}
             onDrawSuccess={onDrawSuccess}
             onUndoLottery={onUndoLottery}
             isDrawingActive={isDrawingActive}
