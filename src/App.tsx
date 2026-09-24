@@ -462,13 +462,14 @@ export default function App() {
   const handleSetActiveCycle = (cycleNumber: number) => {
     const updatedCycles = cycles.map(c => ({
       ...c,
-      status: c.cycleNumber === cycleNumber ? "active" : "archived"
+      status: (c.cycleNumber === cycleNumber ? "active" : (c.status === "active" ? "archived" : c.status))
     }));
     const activeC = updatedCycles.find(c => c.cycleNumber === cycleNumber);
     let updatedSettings = { ...settings, currentCycleNumber: cycleNumber };
     let updatedMembers = members;
 
     if (activeC) {
+      activeC.status = "active";
       updatedSettings.monthlyAmount = activeC.monthlyAmount;
       updatedSettings.savingsAmount = activeC.savingsAmount;
 
@@ -480,6 +481,28 @@ export default function App() {
       }
     }
     persistState(updatedMembers, payments, lotteries, updatedSettings, updatedCycles);
+  };
+
+  const handleDeleteCycle = (cycleId: string) => {
+    const cycleToDelete = cycles.find(c => c.id === cycleId);
+    if (!cycleToDelete) return;
+    if (cycleToDelete.cycleNumber <= 3) {
+      alert("دوره‌های پایه صندوق قابل حذف نیستند.");
+      return;
+    }
+    const updatedCycles = cycles.filter(c => c.id !== cycleId);
+    let updatedSettings = { ...settings };
+    if (settings.currentCycleNumber === cycleToDelete.cycleNumber) {
+      updatedSettings.currentCycleNumber = 3;
+      const c3 = updatedCycles.find(c => c.cycleNumber === 3);
+      if (c3) {
+        c3.status = "active";
+        updatedSettings.monthlyAmount = c3.monthlyAmount;
+        updatedSettings.savingsAmount = c3.savingsAmount;
+      }
+    }
+    persistState(members, payments, lotteries, updatedSettings, updatedCycles);
+    alert(`دوره «${cycleToDelete.title}» با موفقیت حذف گردید.`);
   };
 
   // Add a new member
@@ -1199,6 +1222,7 @@ export default function App() {
                 onAddCycle={handleAddCycle}
                 onUpdateCycle={handleUpdateCycle}
                 onSetActiveCycle={handleSetActiveCycle}
+                onDeleteCycle={handleDeleteCycle}
               />
             )
           ) : (

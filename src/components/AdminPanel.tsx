@@ -53,6 +53,7 @@ interface AdminPanelProps {
   onAddCycle?: (newCycle: FundCycle) => void;
   onUpdateCycle?: (cycleId: string, updatedFields: Partial<FundCycle>) => void;
   onSetActiveCycle?: (cycleNumber: number) => void;
+  onDeleteCycle?: (cycleId: string) => void;
 }
 
 export default function AdminPanel({
@@ -78,7 +79,8 @@ export default function AdminPanel({
   onToggleApplyForLoan,
   onAddCycle,
   onUpdateCycle,
-  onSetActiveCycle
+  onSetActiveCycle,
+  onDeleteCycle
 }: AdminPanelProps) {
   const [activeTab, setActiveTab] = useState<"payments" | "members" | "cycles" | "draw" | "messaging" | "settings">("payments");
   
@@ -672,6 +674,31 @@ export default function AdminPanel({
 
               {/* Month Switcher Controls */}
               <div className="flex flex-wrap items-center gap-2 w-full md:w-auto justify-end">
+                {/* Direct Active Cycle Select */}
+                {cycles && cycles.length > 0 && (
+                  <div className="flex items-center gap-1.5 bg-teal-50 border border-teal-200 px-2 py-1 rounded-lg">
+                    <span className="text-[10px] font-bold text-teal-850 whitespace-nowrap">دوره فعال:</span>
+                    <select
+                      value={settings.currentCycleNumber || 3}
+                      onChange={(e) => {
+                        const cNum = parseInt(e.target.value, 10);
+                        if (onSetActiveCycle) {
+                          onSetActiveCycle(cNum);
+                        } else {
+                          onUpdateSettings({ currentCycleNumber: cNum });
+                        }
+                      }}
+                      className="bg-white border border-teal-300 rounded text-xs font-black text-teal-900 px-2 py-0.5 focus:outline-none cursor-pointer"
+                    >
+                      {cycles.map((c) => (
+                        <option key={c.id} value={c.cycleNumber}>
+                          دوره {toPersianDigits(c.cycleNumber)} ({c.title.replace(/دوره \d+ \((.*?)\)/, '$1') || c.title}) {c.status === "active" ? "🟢" : ""}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
                 {/* Previous Month */}
                 <button
                   type="button"
@@ -1872,6 +1899,7 @@ export default function AdminPanel({
             onAddCycle={onAddCycle || (() => {})}
             onUpdateCycle={onUpdateCycle || (() => {})}
             onSetActiveCycle={onSetActiveCycle || (() => {})}
+            onDeleteCycle={onDeleteCycle}
             onUpdateSettings={onUpdateSettings}
           />
         )}

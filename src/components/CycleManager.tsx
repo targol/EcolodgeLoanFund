@@ -5,7 +5,7 @@ import {
   Layers, Plus, Calendar, CheckCircle2, Clock, Sparkles, TrendingUp,
   Award, Shield, Users, Info, ChevronRight, Check, AlertCircle, Coins,
   History, ArrowUpRight, Flame, BarChart3, Database, FileSpreadsheet, Trophy,
-  Lock, Unlock, Edit3, Save, CheckCircle
+  Lock, Unlock, Edit3, Save, CheckCircle, Trash2
 } from "lucide-react";
 
 interface CycleManagerProps {
@@ -16,6 +16,7 @@ interface CycleManagerProps {
   onAddCycle: (newCycle: FundCycle) => void;
   onUpdateCycle: (cycleId: string, updatedFields: Partial<FundCycle>) => void;
   onSetActiveCycle: (cycleNumber: number) => void;
+  onDeleteCycle?: (cycleId: string) => void;
   onUpdateSettings?: (newSettings: Partial<FundSettings>) => void;
 }
 
@@ -27,6 +28,7 @@ export default function CycleManager({
   onAddCycle,
   onUpdateCycle,
   onSetActiveCycle,
+  onDeleteCycle,
   onUpdateSettings
 }: CycleManagerProps) {
   const [selectedCycleId, setSelectedCycleId] = useState<string>(
@@ -360,57 +362,106 @@ export default function CycleManager({
                 <div
                   key={cycle.id}
                   onClick={() => setSelectedCycleId(cycle.id)}
-                  className={`p-4 rounded-xl border transition-all cursor-pointer text-right relative overflow-hidden ${
+                  className={`p-4 rounded-xl border transition-all cursor-pointer text-right relative overflow-hidden flex flex-col justify-between gap-3 ${
                     isSelected
                       ? "bg-teal-50/50 border-teal-700 ring-2 ring-teal-600/20 shadow-sm"
                       : "bg-white border-slate-200 hover:border-slate-300 shadow-xs"
                   }`}
                 >
-                  <div className="flex items-center justify-between mb-2">
-                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 ${
-                      isActive 
-                        ? "bg-emerald-100 text-emerald-800 border border-emerald-200" 
-                        : "bg-slate-100 text-slate-600 border border-slate-200"
-                    }`}>
-                      {isActive ? (
-                        <>
-                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                          دوره جاری فعال
-                        </>
-                      ) : (
-                        <>
-                          <Lock className="w-2.5 h-2.5 text-slate-500" />
-                          بسته شده و قفل
-                        </>
-                      )}
-                    </span>
-                    <span className="text-xs font-mono font-bold text-slate-400">
-                      دوره #{toPersianDigits(cycle.cycleNumber)}
-                    </span>
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 ${
+                        isActive 
+                          ? "bg-emerald-100 text-emerald-800 border border-emerald-300 font-black" 
+                          : isLocked
+                            ? "bg-amber-50 text-amber-900 border border-amber-200"
+                            : "bg-slate-100 text-slate-600 border border-slate-200"
+                      }`}>
+                        {isActive ? (
+                          <>
+                            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                            دوره جاری فعال
+                          </>
+                        ) : isLocked ? (
+                          <>
+                            <Lock className="w-2.5 h-2.5 text-amber-700" />
+                            بسته شده
+                          </>
+                        ) : (
+                          <>
+                            <Clock className="w-2.5 h-2.5 text-slate-500" />
+                            دوره بایگانی
+                          </>
+                        )}
+                      </span>
+                      <span className="text-xs font-mono font-bold text-slate-400">
+                        دوره #{toPersianDigits(cycle.cycleNumber)}
+                      </span>
+                    </div>
+
+                    <h4 className="text-sm font-black text-slate-800 mb-1 flex items-center gap-1.5">
+                      {isLocked && <Lock className="w-3.5 h-3.5 text-slate-400 shrink-0" />}
+                      <span>{cycle.title}</span>
+                    </h4>
+                    
+                    <div className="grid grid-cols-2 gap-2 mt-3 pt-3 border-t border-slate-100 text-[11px] text-slate-600">
+                      <div>
+                        <span className="text-slate-400 block text-[10px]">قسط ماهانه:</span>
+                        <strong className="font-bold text-slate-700">{formatCurrency(cycle.monthlyAmount)}</strong>
+                      </div>
+                      <div>
+                        <span className="text-slate-400 block text-[10px]">پس‌انداز طلا:</span>
+                        <strong className="font-bold text-teal-700">{formatCurrency(cycle.savingsAmount)}</strong>
+                      </div>
+                      <div>
+                        <span className="text-slate-400 block text-[10px]">تعداد اعضا/سهم:</span>
+                        <strong className="font-bold text-slate-700">{toPersianDigits(cycle.memberIds?.length || 0)} عضو</strong>
+                      </div>
+                      <div>
+                        <span className="text-slate-400 block text-[10px]">مدت دوره:</span>
+                        <strong className="font-bold text-slate-700">{toPersianDigits(cycle.totalMonths)} ماه</strong>
+                      </div>
+                    </div>
                   </div>
 
-                  <h4 className="text-sm font-black text-slate-800 mb-1 flex items-center gap-1.5">
-                    {isLocked && <Lock className="w-3.5 h-3.5 text-slate-400 shrink-0" />}
-                    <span>{cycle.title}</span>
-                  </h4>
-                  
-                  <div className="grid grid-cols-2 gap-2 mt-3 pt-3 border-t border-slate-100 text-[11px] text-slate-600">
-                    <div>
-                      <span className="text-slate-400 block text-[10px]">قسط ماهانه:</span>
-                      <strong className="font-bold text-slate-700">{formatCurrency(cycle.monthlyAmount)}</strong>
-                    </div>
-                    <div>
-                      <span className="text-slate-400 block text-[10px]">پس‌انداز طلا:</span>
-                      <strong className="font-bold text-teal-700">{formatCurrency(cycle.savingsAmount)}</strong>
-                    </div>
-                    <div>
-                      <span className="text-slate-400 block text-[10px]">تعداد اعضا/سهم:</span>
-                      <strong className="font-bold text-slate-700">{toPersianDigits(cycle.memberIds?.length || 0)} عضو</strong>
-                    </div>
-                    <div>
-                      <span className="text-slate-400 block text-[10px]">مدت دوره:</span>
-                      <strong className="font-bold text-slate-700">{toPersianDigits(cycle.totalMonths)} ماه</strong>
-                    </div>
+                  {/* Direct Action on Card */}
+                  <div className="pt-3 border-t border-slate-150 flex items-center gap-2">
+                    {isActive ? (
+                      <div className="w-full py-1.5 px-2 bg-emerald-50 text-emerald-800 border border-emerald-200 rounded-lg text-[11px] font-black flex items-center justify-center gap-1.5">
+                        <CheckCircle className="w-3.5 h-3.5 text-emerald-600" />
+                        <span>دوره فعال جاری صندوق</span>
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedCycleId(cycle.id);
+                          onSetActiveCycle(cycle.cycleNumber);
+                          alert(`✅ دوره «${cycle.title}» به عنوان دوره جاری و فعال صندوق تنظیم شد.`);
+                        }}
+                        className="w-full py-2 px-3 bg-teal-850 hover:bg-teal-900 text-white rounded-lg text-xs font-black transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer"
+                      >
+                        <CheckCircle className="w-3.5 h-3.5" />
+                        <span>فعال‌سازی این دوره</span>
+                      </button>
+                    )}
+
+                    {cycle.cycleNumber > 3 && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (confirm(`آیا از حذف کامل دوره «${cycle.title}» اطمینان دارید؟`)) {
+                            onDeleteCycle?.(cycle.id);
+                          }
+                        }}
+                        className="p-2 text-rose-500 hover:bg-rose-50 border border-transparent hover:border-rose-200 rounded-lg transition-all shrink-0 cursor-pointer"
+                        title="حذف دوره اضافی"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    )}
                   </div>
                 </div>
               );
@@ -434,9 +485,23 @@ export default function CycleManager({
                       </span>
                     </div>
                   </div>
-                  <span className="text-[11px] font-bold text-slate-500 bg-white px-2.5 py-1 rounded border border-slate-200 self-start sm:self-auto">
-                    بایگانی غیرقابل تغییر
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onUpdateCycle(currentCycle.id, { status: "active" });
+                        onSetActiveCycle(currentCycle.cycleNumber);
+                        alert(`✅ دوره «${currentCycle.title}» با موفقیت بازگشایی شد و به عنوان دوره جاری فعال گردید.`);
+                      }}
+                      className="flex items-center gap-1 px-3 py-1.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded-lg text-xs font-black transition-all shadow-xs cursor-pointer"
+                    >
+                      <Unlock className="w-3.5 h-3.5" />
+                      <span>بازگشایی و لغو بستن دوره</span>
+                    </button>
+                    <span className="text-[11px] font-bold text-slate-500 bg-white px-2.5 py-1 rounded border border-slate-200 self-start sm:self-auto">
+                      بایگانی
+                    </span>
+                  </div>
                 </div>
               ) : (
                 <div className="p-3.5 bg-emerald-50/70 border border-emerald-200 rounded-lg flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs text-emerald-950">
@@ -496,12 +561,38 @@ export default function CycleManager({
                 </div>
 
                 <div className="flex items-center gap-2">
-                  {currentCycle.status !== "active" && (
+                  {currentCycle.status !== "active" ? (
                     <button
-                      onClick={() => onSetActiveCycle(currentCycle.cycleNumber)}
-                      className="text-xs font-bold px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg transition-all"
+                      type="button"
+                      onClick={() => {
+                        onSetActiveCycle(currentCycle.cycleNumber);
+                        alert(`✅ دوره «${currentCycle.title}» به عنوان دوره جاری و فعال صندوق تنظیم شد.`);
+                      }}
+                      className="text-xs font-black px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg transition-all shadow cursor-pointer flex items-center gap-1.5"
                     >
-                      فعال‌سازی این دوره به عنوان دوره جاری
+                      <CheckCircle className="w-4 h-4" />
+                      <span>فعال‌سازی این دوره به عنوان دوره جاری صندوق</span>
+                    </button>
+                  ) : (
+                    <span className="text-xs font-black px-3 py-1.5 bg-emerald-100 text-emerald-900 border border-emerald-300 rounded-lg flex items-center gap-1">
+                      <CheckCircle className="w-3.5 h-3.5 text-emerald-600" />
+                      <span>دوره جاری فعال</span>
+                    </span>
+                  )}
+
+                  {currentCycle.cycleNumber > 3 && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (confirm(`آیا از حذف کامل دوره «${currentCycle.title}» اطمینان دارید؟`)) {
+                          onDeleteCycle?.(currentCycle.id);
+                        }
+                      }}
+                      className="text-xs font-bold px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-lg transition-all flex items-center gap-1 cursor-pointer"
+                      title="حذف دوره اضافی"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      <span>حذف این دوره</span>
                     </button>
                   )}
                 </div>
