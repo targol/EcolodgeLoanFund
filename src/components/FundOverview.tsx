@@ -1,5 +1,5 @@
 import { Member, Payment, LotteryResult, FundSettings, PERS_MONTH_NAMES, FundCycle } from "../types";
-import { toPersianDigits, formatCurrency } from "../utils/jalali";
+import { toPersianDigits, formatCurrency, sortLotteriesChronologically } from "../utils/jalali";
 import { Trophy, Sparkles, TrendingUp, Shield, Wallet } from "lucide-react";
 import { motion } from "motion/react";
 
@@ -95,7 +95,7 @@ export default function FundOverview({ members, payments, lotteries, settings, c
 
   // Unified list of winners for the active cycle history
   const activeCycleWinnersList = (() => {
-    const list: { id: string; monthName: string; winnerName: string; totalPoolAmount: number; loanType: string; drawMethod?: string }[] = [];
+    const list: { id: string; monthName: string; winnerName: string; totalPoolAmount: number; loanType: string; drawMethod?: string; drawDateShamsi?: string }[] = [];
     
     // First from lotteries matching this cycle
     cycleLotteries.forEach((lot) => {
@@ -105,15 +105,16 @@ export default function FundOverview({ members, payments, lotteries, settings, c
         winnerName: lot.winnerName,
         totalPoolAmount: lot.totalPoolAmount || expectedMonthlyLoanPool,
         loanType: lot.loanType || "main",
-        drawMethod: lot.drawMethod
+        drawMethod: lot.drawMethod,
+        drawDateShamsi: lot.drawDateShamsi
       });
     });
 
     // Also include pastWinners from cycle definition if not in list
     if (activeCycle?.pastWinners) {
       activeCycle.pastWinners.forEach((pw, idx) => {
-        const exists = list.some(item => item.monthName === pw.monthName && item.winnerName === pw.winnerName);
-        if (!exists) {
+        const existing = list.find(item => item.monthName === pw.monthName && item.winnerName === pw.winnerName);
+        if (!existing) {
           list.push({
             id: `past_${idx}`,
             monthName: pw.monthName,
@@ -126,7 +127,7 @@ export default function FundOverview({ members, payments, lotteries, settings, c
       });
     }
 
-    return list;
+    return sortLotteriesChronologically(list, true);
   })();
 
   // Latest lottery winner for hero presentation (takes the latest main winner of active cycle)
@@ -149,7 +150,7 @@ export default function FundOverview({ members, payments, lotteries, settings, c
             <div className="space-y-1">
               <div className="flex flex-wrap items-center gap-2">
                 <span className="text-[10px] font-black uppercase tracking-wider bg-amber-400/20 text-amber-300 px-2.5 py-0.5 rounded-full border border-amber-300/30">
-                  🎉 آخرین برنده قرعه‌کشی ({latestLotteryWinner.monthName})
+                  🎉 آخرین برنده قرعه‌کشی ({latestLotteryWinner.monthName}{latestLotteryWinner.drawDateShamsi ? ` • ${latestLotteryWinner.drawDateShamsi}` : ""})
                 </span>
                 <span className="text-[10px] text-emerald-300 font-bold bg-emerald-900/60 px-2 py-0.5 rounded-full border border-emerald-500/30">
                   ✓ ثبت قطعی در سامانه
@@ -418,7 +419,12 @@ export default function FundOverview({ members, payments, lotteries, settings, c
                         <span className="bg-blue-100 text-[9px] text-blue-850 px-1 py-0.5 rounded font-bold">وام ضروری</span>
                       )}
                     </div>
-                    <p className="text-[10px] text-slate-400 mt-0.5">{lot.monthName}</p>
+                    <div className="flex items-center gap-1.5 text-[10px] text-slate-500 mt-0.5">
+                      <span>{lot.monthName}</span>
+                      {lot.drawDateShamsi && (
+                        <span className="font-mono text-slate-400">({lot.drawDateShamsi})</span>
+                      )}
+                    </div>
                   </div>
                   <div className="text-left font-mono">
                     <p className={`font-black ${lot.loanType === "emergency" ? "text-blue-700" : "text-teal-700"}`}>

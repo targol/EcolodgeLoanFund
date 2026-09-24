@@ -8,7 +8,9 @@ import {
   gregorianToJalali,
   getTodayJalali,
   getPrevJalaliMonth,
-  getNextJalaliMonth
+  getNextJalaliMonth,
+  toEnglishDigits,
+  sortLotteriesChronologically
 } from "./utils/jalali";
 import { cloudSyncService, CloudSyncStatus } from "./services/cloudflareSync";
 import FundOverview from "./components/FundOverview";
@@ -801,9 +803,10 @@ export default function App() {
     method: "random" | "weighted" | "manual" | "emergency_random" | "emergency_manual",
     loanType: "main" | "emergency",
     customAmount?: number,
-    customWinnerDate?: string // Editable win date!
+    customWinnerDate?: string, // Editable win date!
+    customDrawMonth?: string // Target month e.g. "آبان ۱۴۰۵"
   ) => {
-    const currentMonthName = `${PERS_MONTH_NAMES[settings.currentMonthIndex]} ${settings.currentYear}`;
+    const targetMonthName = customDrawMonth || `${PERS_MONTH_NAMES[settings.currentMonthIndex]} ${settings.currentYear}`;
     const totalAmount = loanType === "main" ? (members.length * settings.monthlyAmount) : (customAmount || 2000000);
 
     // 1. Update winner status
@@ -813,7 +816,7 @@ export default function App() {
           return {
             ...m,
             hasWon: true,
-            winMonth: currentMonthName,
+            winMonth: targetMonthName,
             isAppliedForLoan: false // clear application flag of main loan on winning!
           };
         } else {
@@ -851,7 +854,7 @@ export default function App() {
 
     const newResult: LotteryResult = {
       id: `lot_${Date.now()}`,
-      monthName: currentMonthName,
+      monthName: targetMonthName,
       winnerId,
       winnerName,
       drawDateShamsi: finalDrawDate,
@@ -868,12 +871,12 @@ export default function App() {
     const updatedCycles = cycles.map(c => {
       if (c.cycleNumber === currentCNum) {
         const past = c.pastWinners || [];
-        const alreadyHas = past.some(pw => pw.monthName === currentMonthName && pw.winnerName === winnerName);
+        const alreadyHas = past.some(pw => pw.monthName === targetMonthName && pw.winnerName === winnerName);
         if (!alreadyHas) {
           return {
             ...c,
             pastWinners: [...past, {
-              monthName: currentMonthName,
+              monthName: targetMonthName,
               winnerName,
               loanType
             }]
@@ -886,16 +889,16 @@ export default function App() {
     // 3. Increment the month (Rotate to next month) ONLY if drawing MAIN loan
     let updatedSettings = { ...settings };
     if (loanType === "main") {
-      let nextMonthIndex = settings.currentMonthIndex + 1;
-      let nextYear = settings.currentYear;
-      if (nextMonthIndex > 11) {
-        nextMonthIndex = 0;
-        nextYear += 1;
-      }
+      const parts = targetMonthName.trim().split(/\s+/);
+      const drawnMIdx = parts[0] ? PERS_MONTH_NAMES.findIndex(m => m === parts[0]) : settings.currentMonthIndex;
+      let drawnYr = parts.length > 1 ? parseInt(toEnglishDigits(parts[1]), 10) : settings.currentYear;
+      if (isNaN(drawnYr)) drawnYr = settings.currentYear;
+
+      const nextMonth = getNextJalaliMonth(drawnYr, drawnMIdx >= 0 ? drawnMIdx : settings.currentMonthIndex);
       updatedSettings = {
         ...settings,
-        currentMonthIndex: nextMonthIndex,
-        currentYear: nextYear
+        currentMonthIndex: nextMonth.monthIndex,
+        currentYear: nextMonth.year
       };
     }
 

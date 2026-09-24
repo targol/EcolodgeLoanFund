@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { Member, Payment, FundCycle, FundSettings, PERS_MONTH_NAMES } from "../types";
-import { toPersianDigits, formatCurrency } from "../utils/jalali";
+import { toPersianDigits, formatCurrency, sortLotteriesChronologically } from "../utils/jalali";
 import { 
   Layers, Plus, Calendar, CheckCircle2, Clock, Sparkles, TrendingUp,
   Award, Shield, Users, Info, ChevronRight, Check, AlertCircle, Coins,
@@ -777,36 +777,49 @@ export default function CycleManager({
 
               {/* Past Winners / Lottery History in this cycle */}
               {(() => {
-                const combinedWinners: { monthName: string; winnerName: string; loanType?: string }[] = [];
+                const combinedWinners: { monthName: string; winnerName: string; loanType?: string; drawDateShamsi?: string }[] = [];
                 if (currentCycle.pastWinners) {
-                  combinedWinners.push(...currentCycle.pastWinners);
+                  currentCycle.pastWinners.forEach(pw => {
+                    combinedWinners.push({
+                      monthName: pw.monthName,
+                      winnerName: pw.winnerName,
+                      loanType: pw.loanType
+                    });
+                  });
                 }
                 if (lotteries && lotteries.length > 0) {
                   lotteries.forEach((lot: any) => {
                     if (lot.cycleNumber === currentCycle.cycleNumber || (!lot.cycleNumber && currentCycle.status === "active")) {
-                      const already = combinedWinners.some(
+                      const existing = combinedWinners.find(
                         (w) => w.monthName === lot.monthName && w.winnerName === lot.winnerName
                       );
-                      if (!already) {
+                      if (existing) {
+                        if (lot.drawDateShamsi && !existing.drawDateShamsi) {
+                          existing.drawDateShamsi = lot.drawDateShamsi;
+                        }
+                      } else {
                         combinedWinners.push({
                           monthName: lot.monthName,
                           winnerName: lot.winnerName,
-                          loanType: lot.loanType
+                          loanType: lot.loanType,
+                          drawDateShamsi: lot.drawDateShamsi
                         });
                       }
                     }
                   });
                 }
 
-                return combinedWinners.length > 0 ? (
+                const sortedWinners = sortLotteriesChronologically(combinedWinners, true);
+
+                return sortedWinners.length > 0 ? (
                   <div>
                     <h4 className="text-xs font-bold text-slate-800 flex items-center gap-1.5 mb-3">
                       <Trophy className="w-4 h-4 text-amber-600" />
-                      <span>تاریخچه برندگان و پرداخت تسهیلات در این دوره ({toPersianDigits(combinedWinners.length)} مورد)</span>
+                      <span>تاریخچه برندگان و پرداخت تسهیلات در این دوره ({toPersianDigits(sortedWinners.length)} مورد)</span>
                     </h4>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 text-xs">
-                      {combinedWinners.map((win, idx) => (
+                      {sortedWinners.map((win, idx) => (
                         <div
                           key={idx}
                           className="p-2.5 bg-amber-50/40 border border-amber-200/80 rounded-lg flex items-center justify-between"
@@ -817,7 +830,12 @@ export default function CycleManager({
                             </span>
                             <div className="truncate">
                               <span className="font-bold text-slate-850 block truncate">{win.winnerName}</span>
-                              <span className="text-[10px] text-amber-800 font-mono">{win.monthName}</span>
+                              <div className="flex items-center gap-1.5 text-[10px] text-amber-900 font-mono">
+                                <span>{win.monthName}</span>
+                                {win.drawDateShamsi && (
+                                  <span className="text-slate-500 font-sans">({win.drawDateShamsi})</span>
+                                )}
+                              </div>
                             </div>
                           </div>
                           <span className="text-[10px] text-emerald-700 font-bold bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200 shrink-0">

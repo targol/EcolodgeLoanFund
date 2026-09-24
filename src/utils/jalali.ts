@@ -139,6 +139,38 @@ export function getNextJalaliMonth(year: number, monthIndex: number): { year: nu
   return { year, monthIndex: monthIndex + 1 };
 }
 
+// Convert lottery draw date or month name to a strictly comparable integer for chronological sorting
+export function getLotterySortOrder(lot: { drawDateShamsi?: string; monthName?: string }): number {
+  if (lot.drawDateShamsi) {
+    const eng = toEnglishDigits(lot.drawDateShamsi);
+    const parts = eng.split(/[/ -]/).map(p => parseInt(p, 10)).filter(n => !isNaN(n));
+    if (parts.length >= 3) {
+      return parts[0] * 10000 + parts[1] * 100 + parts[2];
+    }
+  }
+  if (lot.monthName) {
+    const parts = lot.monthName.trim().split(/\s+/);
+    const mName = parts[0];
+    const mIdx = PERS_MONTH_NAMES.findIndex(m => m === mName);
+    const yr = parts.length > 1 ? parseInt(toEnglishDigits(parts[1]), 10) : 1405;
+    const finalMonth = mIdx >= 0 ? mIdx + 1 : 1;
+    const finalYear = !isNaN(yr) ? yr : 1405;
+    return finalYear * 10000 + finalMonth * 100 + 1;
+  }
+  return 0;
+}
+
+// Sort lotteries chronologically (ascending or descending)
+export function sortLotteriesChronologically<T extends { drawDateShamsi?: string; monthName?: string }>(
+  lotteriesList: T[],
+  ascending: boolean = true
+): T[] {
+  return [...lotteriesList].sort((a, b) => {
+    const diff = getLotterySortOrder(a) - getLotterySortOrder(b);
+    return ascending ? diff : -diff;
+  });
+}
+
 // Format numbers with commas (e.g., 2,000,000) inside Persian string
 export function formatCurrency(amount: number): string {
   const formatted = new Intl.NumberFormat("en-US").format(amount);

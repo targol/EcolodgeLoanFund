@@ -8,7 +8,8 @@ import {
   getDaysInJalaliMonth,
   getTodayJalali,
   getPrevJalaliMonth,
-  getNextJalaliMonth
+  getNextJalaliMonth,
+  sortLotteriesChronologically
 } from "../utils/jalali";
 import { 
   sendTelegramMessage, 
@@ -43,7 +44,7 @@ interface AdminPanelProps {
   onUpdatePaymentDate?: (paymentId: string, newDay: number) => void;
   onRejectPayment?: (paymentId: string) => void;
   onUpdateSettings: (newSettings: Partial<FundSettings>) => void;
-  onDrawSuccess: (winnerId: string, method: "random" | "weighted" | "manual" | "emergency_random" | "emergency_manual", loanType: "main" | "emergency", customAmount?: number, customWinnerDate?: string) => void;
+  onDrawSuccess: (winnerId: string, method: "random" | "weighted" | "manual" | "emergency_random" | "emergency_manual", loanType: "main" | "emergency", customAmount?: number, customWinnerDate?: string, customDrawMonth?: string) => void;
   onUndoLottery?: (lotteryId: string) => void;
   onResetFundCycle: () => void;
   onImportDatabase?: (data: { members: Member[]; payments: Payment[]; lotteries: any[]; settings: FundSettings; cycles?: FundCycle[] }) => void;
@@ -509,17 +510,23 @@ export default function AdminPanel({
     const savAmt = (activeCycle?.savingsAmount || settings.savingsAmount || 500000) * shares;
     const totAmt = instAmt + savAmt;
     
-    // Find last winner for {نام_برنده}
-    const lastLottery = lotteries && lotteries.length > 0 ? lotteries[lotteries.length - 1] : undefined;
-    const lastWinnerMember = lastLottery ? members.find(m => m.id === lastLottery.winnerMemberId) : undefined;
-    const winnerNameResolved = lastWinnerMember ? lastWinnerMember.name : (targetMember ? targetMember.name : "نام عضو برنده");
+    // Find last winner for {نام_برنده} from chronologically sorted lotteries
+    const sortedMainLotteries = sortLotteriesChronologically(
+      (lotteries || []).filter(l => l.loanType === "main" || !l.loanType),
+      true
+    );
+    const lastLottery = sortedMainLotteries.length > 0 ? sortedMainLotteries[sortedMainLotteries.length - 1] : undefined;
+    const lastWinnerMember = lastLottery ? members.find(m => m.id === lastLottery.winnerId) : undefined;
+    const winnerNameResolved = lastLottery?.winnerName || lastWinnerMember?.name || (targetMember ? targetMember.name : "نام عضو برنده");
+    const winnerMonthResolved = lastLottery?.monthName || currentMonthName;
+    const winnerDateResolved = lastLottery?.drawDateShamsi || `${settings.currentYear}/${String(settings.currentMonthIndex + 1).padStart(2, '0')}/${toPersianDigits(editLotteryDayOfMonth || 1)}`;
 
     return formatTelegramMessage(tpl, {
       winnerName: winnerNameResolved,
       fundName: editFundName || settings.fundName,
-      monthName: currentMonthName,
+      monthName: winnerMonthResolved,
       amountStr: formatCurrency(activeCycleMembers.length * (activeCycle?.monthlyAmount || settings.monthlyAmount)),
-      dateStr: `${settings.currentYear}/${String(settings.currentMonthIndex + 1).padStart(2, '0')}/${toPersianDigits(editLotteryDayOfMonth || 1)}`,
+      dateStr: winnerDateResolved,
       loanTypeStr: "تسهیلات اصلی",
       memberName: targetMember ? targetMember.name : (target === "unpaid" ? "عضو محترم" : "تمامی اعضا"),
       memberPhone: targetMember?.phone || "",
@@ -972,11 +979,15 @@ export default function AdminPanel({
                                 )}
                               </div>
                               <div className="flex flex-wrap gap-1 mt-0.5">
-                                {member.hasWon && (
-                                  <span className="bg-slate-100 text-[9px] px-1.5 py-0.2 rounded border border-slate-200 mr-1 inline-block text-slate-500 font-bold">
-                                    برنده وام اصلی ({member.winMonth})
-                                  </span>
-                                )}
+                                {member.hasWon && (() => {
+                                  const memLot = lotteries.find(l => l.winnerId === member.id && (l.loanType === "main" || !l.loanType));
+                                  const winLabel = memLot ? `${memLot.monthName}${memLot.drawDateShamsi ? ` (${memLot.drawDateShamsi})` : ""}` : member.winMonth;
+                                  return (
+                                    <span className="bg-slate-100 text-[9px] px-1.5 py-0.2 rounded border border-slate-200 mr-1 inline-block text-slate-600 font-bold">
+                                      برنده وام اصلی ({winLabel})
+                                    </span>
+                                  );
+                                })()}
                                 {member.isAppliedForLoan && (
                                   <span className="bg-teal-50 text-teal-800 text-[9px] px-1 py-0.2 rounded border border-teal-100 font-bold animate-pulse">
                                     تقاضای فعال وام اصلی
@@ -1748,11 +1759,15 @@ export default function AdminPanel({
                           </div>
 
                           <div className="flex flex-col gap-1 text-left shrink-0">
-                            {member.hasWon ? (
-                              <span className="bg-teal-50 text-teal-800 text-[9px] px-2 py-0.5 rounded font-black border border-teal-100">
-                                برنده وام ({member.winMonth})
-                              </span>
-                            ) : (
+                            {member.hasWon ? (() => {
+                              const memLot = lotteries.find(l => l.winnerId === member.id && (l.loanType === "main" || !l.loanType));
+                              const winLabel = memLot ? `${memLot.monthName}${memLot.drawDateShamsi ? ` - ${memLot.drawDateShamsi}` : ""}` : (member.winMonth || "برنده وام");
+                              return (
+                                <span className="bg-teal-50 text-teal-800 text-[9px] px-2 py-0.5 rounded font-black border border-teal-100">
+                                  برنده وام ({winLabel})
+                                </span>
+                              );
+                            })() : (
                               <span className="bg-amber-50 text-amber-700 text-[9px] px-2 py-0.5 rounded font-black border border-amber-100">
                                 در نوبت تسهیلات
                               </span>

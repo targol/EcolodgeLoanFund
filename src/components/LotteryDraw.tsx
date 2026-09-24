@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Member, LotteryResult, FundSettings, PERS_MONTH_NAMES } from "../types";
-import { toPersianDigits, formatCurrency } from "../utils/jalali";
+import { toPersianDigits, formatCurrency, sortLotteriesChronologically, getNextJalaliMonth, toEnglishDigits } from "../utils/jalali";
 import { sendTelegramMessage, sendTelegramVideo, formatTelegramMessage, DEFAULT_TELEGRAM_TEMPLATE } from "../utils/telegram";
 import { generateLotteryVideo } from "../utils/lotteryVideoRecorder";
 import { 
@@ -40,7 +40,8 @@ interface LotteryDrawProps {
     method: "random" | "weighted" | "manual" | "emergency_random" | "emergency_manual", 
     loanType: "main" | "emergency", 
     customAmount?: number, 
-    customWinnerDate?: string
+    customWinnerDate?: string,
+    customDrawMonth?: string
   ) => void;
   onUndoLottery?: (lotteryId: string) => void;
   isDrawingActive: boolean;
@@ -133,7 +134,42 @@ export default function LotteryDraw({
   // Active candidates (filtering out excluded members)
   const activeCandidates = eligibleCandidates.filter(m => !excludedMemberIds.includes(m.id));
 
-  const currentMonthName = `${PERS_MONTH_NAMES[settings.currentMonthIndex]} ${settings.currentYear}`;
+  // Sort lotteries chronologically based on registered draw date & month
+  const sortedLotteriesAsc = sortLotteriesChronologically(lotteries || [], true);
+  const sortedLotteriesDesc = sortLotteriesChronologically(lotteries || [], false);
+
+  const currentCycleNum = settings.currentCycleNumber || 3;
+  const cycleMainLotteriesAsc = sortedLotteriesAsc.filter(l => 
+    (l.cycleNumber === currentCycleNum || !l.cycleNumber) && (l.loanType === "main" || !l.loanType)
+  );
+
+  // Determine the next draw month directly from cycle history to prevent any 1-month shift:
+  const targetDrawMonth = (() => {
+    if (cycleMainLotteriesAsc.length > 0) {
+      const latestLot = cycleMainLotteriesAsc[cycleMainLotteriesAsc.length - 1];
+      const parts = latestLot.monthName ? latestLot.monthName.trim().split(/\s+/) : [];
+      const mIdx = parts[0] ? PERS_MONTH_NAMES.findIndex(m => m === parts[0]) : -1;
+      let yr = parts.length > 1 ? parseInt(toEnglishDigits(parts[1]), 10) : settings.currentYear;
+      if (isNaN(yr)) yr = settings.currentYear;
+
+      if (mIdx >= 0) {
+        const nextMonth = getNextJalaliMonth(yr, mIdx);
+        return {
+          monthIndex: nextMonth.monthIndex,
+          year: nextMonth.year,
+          monthName: `${PERS_MONTH_NAMES[nextMonth.monthIndex]} ${toPersianDigits(nextMonth.year)}`
+        };
+      }
+    }
+
+    return {
+      monthIndex: settings.currentMonthIndex,
+      year: settings.currentYear,
+      monthName: `${PERS_MONTH_NAMES[settings.currentMonthIndex]} ${toPersianDigits(settings.currentYear)}`
+    };
+  })();
+
+  const currentMonthName = targetDrawMonth.monthName;
   const totalPoolAmount = loanType === "main" ? (members.length * settings.monthlyAmount) : customEmergencyAmount;
 
   // Toggle member exclusion
@@ -158,12 +194,12 @@ export default function LotteryDraw({
   // Set default values when drawing is finished and a winner is chosen
   useEffect(() => {
     if (hasFinishedDrawing && selectedWinnerId) {
-      const currentMonthIndexStr = String(settings.currentMonthIndex + 1).padStart(2, '0');
+      const currentMonthIndexStr = String(targetDrawMonth.monthIndex + 1).padStart(2, '0');
       const dayStr = String(settings.lotteryDayOfMonth || 3).padStart(2, '0');
-      setCustomWinDate(`${settings.currentYear}/${currentMonthIndexStr}/${dayStr}`);
+      setCustomWinDate(`${targetDrawMonth.year}/${currentMonthIndexStr}/${dayStr}`);
       setCustomPayoutAmount(totalPoolAmount);
     }
-  }, [hasFinishedDrawing, selectedWinnerId, totalPoolAmount, settings]);
+  }, [hasFinishedDrawing, selectedWinnerId, totalPoolAmount, settings, targetDrawMonth]);
 
   // Calculate probabilities for candidate view
   const calculatedProbabilities = (() => {
@@ -414,7 +450,7 @@ export default function LotteryDraw({
         }
       }
 
-      onDrawSuccess(selectedWinnerId, finalMethod, loanType, customPayoutAmount || totalPoolAmount, customWinDate);
+      onDrawSuccess(selectedWinnerId, finalMethod, loanType, customPayoutAmount || totalPoolAmount, customWinDate, currentMonthName);
       setSelectedWinnerId(null);
       setHasFinishedDrawing(false);
       setVideoState({ isGenerating: false, progress: 0, videoBlob: null, videoUrl: null, fileName: null });
@@ -425,12 +461,12 @@ export default function LotteryDraw({
   const handleQuickRegisterWinner = (memberId: string) => {
     const targetMember = members.find(m => m.id === memberId);
     if (!targetMember) return;
-    const currentMonthLabel = `${PERS_MONTH_NAMES[settings.currentMonthIndex]} ${settings.currentYear}`;
+    const currentMonthLabel = currentMonthName;
     const loanLabel = loanType === "main" ? "وام اصلی" : "وام ضروری";
     if (window.confirm(`آیا از ثبت مستقیم «${targetMember.name}» به عنوان برنده ${loanLabel} ماه ${currentMonthLabel} و ثبت در سامانه اطمینان دارید؟`)) {
       const finalMethod = loanType === "emergency" ? "emergency_manual" : "manual";
       const amount = customPayoutAmount || totalPoolAmount;
-      onDrawSuccess(memberId, finalMethod, loanType, amount, customWinDate);
+      onDrawSuccess(memberId, finalMethod, loanType, amount, customWinDate, currentMonthName);
       setSelectedWinnerId(null);
       setHasFinishedDrawing(false);
     }
@@ -538,12 +574,12 @@ export default function LotteryDraw({
       </div>
 
       {/* Quick summary of completed months and winners in this cycle */}
-      {lotteries && lotteries.length > 0 && (
+      {sortedLotteriesAsc && sortedLotteriesAsc.length > 0 && (
         <div className="p-3 bg-gradient-to-r from-teal-50/70 via-slate-50 to-amber-50/60 rounded-xl border border-teal-200/80 space-y-2">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <h4 className="text-xs font-black text-slate-800 flex items-center gap-1.5">
               <Trophy className="w-4 h-4 text-amber-500" />
-              <span>ماه‌های انجام‌شده و برندگان ثبت‌شده این دوره ({toPersianDigits(lotteries.length)} ماه):</span>
+              <span>ماه‌های انجام‌شده و تاریخ دقیق قرعه‌کشی‌های ثبت‌شده ({toPersianDigits(sortedLotteriesAsc.length)} ماه):</span>
             </h4>
             <div className="flex items-center gap-2">
               <span className="text-[10.5px] bg-teal-800 text-white font-black px-2.5 py-0.5 rounded-full shadow-2xs">
@@ -561,8 +597,8 @@ export default function LotteryDraw({
             </div>
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2 text-xs">
-            {lotteries.map((lot, idx) => (
-              <div key={lot.id || idx} className="p-2 bg-white rounded-lg border border-slate-200 shadow-2xs">
+            {sortedLotteriesAsc.map((lot, idx) => (
+              <div key={lot.id || idx} className="p-2.5 bg-white rounded-lg border border-slate-200 shadow-2xs hover:border-teal-300 transition-colors">
                 <div className="flex items-center justify-between gap-1 text-[10px] text-teal-850 font-black">
                   <span>{lot.monthName}</span>
                   <span className="w-4 h-4 rounded-full bg-teal-100 text-teal-900 flex items-center justify-center font-mono text-[9px] font-bold">
@@ -572,9 +608,9 @@ export default function LotteryDraw({
                 <div className="font-bold text-slate-850 text-[11px] truncate mt-1" title={lot.winnerName}>
                   {lot.winnerName}
                 </div>
-                <div className="text-[9px] text-slate-400 mt-0.5 flex items-center justify-between">
-                  <span>{lot.loanType === "emergency" ? "وام ضروری" : "وام اصلی"}</span>
-                  <span className="text-emerald-600 font-bold">✓ ثبت شد</span>
+                <div className="text-[9px] text-slate-500 mt-1 flex items-center justify-between font-mono">
+                  <span className="truncate">{lot.drawDateShamsi ? `📅 ${lot.drawDateShamsi}` : (lot.loanType === "emergency" ? "وام ضروری" : "وام اصلی")}</span>
+                  <span className="text-emerald-600 font-bold shrink-0 mr-1">✓ ثبت</span>
                 </div>
               </div>
             ))}
@@ -1238,12 +1274,12 @@ export default function LotteryDraw({
             </p>
 
             <div className="flex-1 min-h-0 overflow-y-auto space-y-2.5 pr-1">
-              {lotteries.length === 0 ? (
+              {sortedLotteriesDesc.length === 0 ? (
                 <div className="p-8 text-center text-slate-400 text-xs font-bold">
                   هنوز هیچ قرعه‌کشی ثبت نشده است.
                 </div>
               ) : (
-                lotteries.slice().reverse().map((lot) => (
+                sortedLotteriesDesc.map((lot) => (
                   <div
                     key={lot.id}
                     className="p-3.5 rounded-xl border border-slate-200 bg-slate-50/70 flex items-center justify-between gap-3 shadow-2xs hover:bg-white transition-all"
@@ -1257,12 +1293,12 @@ export default function LotteryDraw({
                           {lot.loanType === "emergency" ? "وام ضروری" : "وام اصلی"}
                         </span>
                       </div>
-                      <div className="text-[10px] text-slate-400 mt-1 flex items-center gap-2">
-                        <span>ماه: {lot.monthName}</span>
+                      <div className="text-[10px] text-slate-600 mt-1 flex flex-wrap items-center gap-2">
+                        <span className="font-bold text-teal-900">ماه: {lot.monthName}</span>
                         <span>•</span>
-                        <span>تاریخ: {lot.drawDateShamsi}</span>
+                        <span className="font-mono text-slate-700">تاریخ ثبت: {lot.drawDateShamsi}</span>
                         <span>•</span>
-                        <span className="font-bold text-slate-600 font-mono">{formatCurrency(lot.totalPoolAmount)}</span>
+                        <span className="font-bold text-slate-700 font-mono">{formatCurrency(lot.totalPoolAmount)}</span>
                       </div>
                     </div>
 
