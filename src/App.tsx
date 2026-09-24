@@ -159,26 +159,16 @@ export default function App() {
         if (parsed && typeof parsed === "object") {
           let profit = parsed.goldFundProfitToman !== undefined && parsed.goldFundProfitToman !== null
             ? Number(parsed.goldFundProfitToman)
-            : 0;
-          let totalVal = (parsed.goldFundValueToman && parsed.goldFundValueToman >= 20000000)
-            ? Number(parsed.goldFundValueToman)
-            : (20000000 + profit);
+            : 5500000;
+          let totalVal = 25000000 + profit;
 
-          // Clear legacy hardcoded 3,500,000 profit so that fresh manual admin input is respected
-          if (profit === 3500000 && (totalVal === 23500000 || totalVal === 20000000 || !parsed.goldFundProfitManuallySet)) {
-            profit = 0;
-            totalVal = 20000000;
-          }
-
-          // Determine active month: if saved month was an older month (e.g. Shahrivar) and calendar has turned into Mehr, auto-advance
+          // Determine active month:
+          // Since Mehr (month 6) lottery draw has been completed for Cycle 3,
+          // the active next installment/lottery month is Aban 1405 (index 7).
           let activeYear = parsed.currentYear || currentToday.year;
-          let activeMonth = parsed.currentMonthIndex !== undefined ? parsed.currentMonthIndex : currentToday.monthIndex;
-          if (
-            currentToday.year > activeYear ||
-            (currentToday.year === activeYear && currentToday.monthIndex > activeMonth)
-          ) {
-            activeYear = currentToday.year;
-            activeMonth = currentToday.monthIndex;
+          let activeMonth = parsed.currentMonthIndex !== undefined ? parsed.currentMonthIndex : 7;
+          if (activeMonth < 7) {
+            activeMonth = 7;
           }
 
           const effectiveToken = parsed.telegramBotToken?.trim() || localTgToken || "";
@@ -249,18 +239,48 @@ export default function App() {
       if (remoteData && remoteData.members && Array.isArray(remoteData.members)) {
         // If local had user payments, preserve any local receipts and pending records
         setPayments(currentLocalPayments => {
-          if (!currentLocalPayments || currentLocalPayments.length === 0) {
-            return remoteData.payments || [];
-          }
-          if (!remoteData.payments || remoteData.payments.length === 0) {
-            return currentLocalPayments;
-          }
-          // Merge payments preserving local entries
           const mergedMap = new Map<string, Payment>();
-          remoteData.payments.forEach(p => mergedMap.set(p.id, p));
-          currentLocalPayments.forEach(p => mergedMap.set(p.id, p)); // local wins
+          defaults.payments.forEach(p => mergedMap.set(p.id, p));
+          if (remoteData.payments && Array.isArray(remoteData.payments)) {
+            remoteData.payments.forEach(p => mergedMap.set(p.id, p));
+          }
+          if (currentLocalPayments && Array.isArray(currentLocalPayments)) {
+            currentLocalPayments.forEach(p => mergedMap.set(p.id, p));
+          }
           const merged = Array.from(mergedMap.values());
           localStorage.setItem("mehr_fund_payments", JSON.stringify(merged));
+          return merged;
+        });
+
+        if (remoteData.lotteries && Array.isArray(remoteData.lotteries)) {
+          setLotteries(currentLocalLotteries => {
+            const map = new Map<string, LotteryResult>();
+            defaults.lotteries.forEach(l => map.set(l.id, l));
+            remoteData.lotteries.forEach(l => map.set(l.id, l));
+            if (currentLocalLotteries && Array.isArray(currentLocalLotteries)) {
+              currentLocalLotteries.forEach(l => map.set(l.id, l));
+            }
+            const merged = Array.from(map.values());
+            localStorage.setItem("mehr_fund_lotteries", JSON.stringify(merged));
+            return merged;
+          });
+        }
+
+        setMembers(currentLocalMembers => {
+          const map = new Map<string, Member>();
+          defaults.members.forEach(m => map.set(m.id, m));
+          if (remoteData.members && Array.isArray(remoteData.members)) {
+            remoteData.members.forEach(m => map.set(m.id, m));
+          }
+          if (currentLocalMembers && Array.isArray(currentLocalMembers)) {
+            currentLocalMembers.forEach(m => map.set(m.id, m));
+          }
+          const mem6 = map.get("mem_6");
+          if (mem6 && !mem6.hasWon) {
+            map.set("mem_6", { ...mem6, hasWon: true, winMonth: "مهر ۱۴۰۵" });
+          }
+          const merged = Array.from(map.values());
+          localStorage.setItem("mehr_fund_members", JSON.stringify(merged));
           return merged;
         });
 
@@ -269,13 +289,8 @@ export default function App() {
             const raw = remoteData.settings;
             let profit = raw.goldFundProfitToman !== undefined && raw.goldFundProfitToman !== null
               ? Number(raw.goldFundProfitToman)
-              : 0;
-            if (profit === 3500000 && (raw.goldFundValueToman === 23500000 || !raw.goldFundProfitManuallySet)) {
-              profit = 0;
-            }
-            const totalVal = (raw.goldFundValueToman && raw.goldFundValueToman >= 20000000 && profit > 0)
-              ? Number(raw.goldFundValueToman)
-              : (20000000 + profit);
+              : 5500000;
+            const totalVal = 25000000 + profit;
 
             // Safely preserve Telegram Bot Token & API key from remote OR local
             const effectiveToken = raw.telegramBotToken?.trim() || 
@@ -290,15 +305,11 @@ export default function App() {
             if (effectiveToken) localStorage.setItem("mehr_fund_telegram_token", effectiveToken);
             if (effectiveChatId) localStorage.setItem("mehr_fund_telegram_chat_id", effectiveChatId);
 
-            // Auto-advance month if remote had an older month and today has reached Mehr or later
+            // Active next payment month is Aban (index 7), as Mehr (index 6) lottery was completed
             let activeYear = raw.currentYear ?? curr.currentYear;
-            let activeMonth = raw.currentMonthIndex ?? curr.currentMonthIndex;
-            if (
-              currentToday.year > activeYear ||
-              (currentToday.year === activeYear && currentToday.monthIndex > activeMonth)
-            ) {
-              activeYear = currentToday.year;
-              activeMonth = currentToday.monthIndex;
+            let activeMonth = raw.currentMonthIndex !== undefined ? raw.currentMonthIndex : 7;
+            if (activeMonth < 7) {
+              activeMonth = 7;
             }
 
             const updated: FundSettings = {

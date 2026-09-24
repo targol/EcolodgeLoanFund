@@ -193,11 +193,11 @@ export function getInitialMockData(): {
     lotteryDayOfMonth: 1,   // Automatic lottery on 1st day of month
     autoDrawOnFirstOfMonth: true,
     currentYear: today.year,
-    currentMonthIndex: today.monthIndex, // Active current month (Mehr 1405, index 6)
+    currentMonthIndex: 7, // Active current month is Aban (index 7), since Mehr draw has completed!
     adminPassword: "admin",
-    goldInvestmentNote: "مبالغ پس‌انداز ماهانه (۵۰۰,۰۰۰ تومان در ماه به ازای هر سهم = ۵ میلیون تومان در ماه) در صندوق طلا سرمایه‌گذاری شده است. ارزش روز، سود انباشته و میزان نهایی دارایی در پایان دوره محاسبه و در مورد نحوه انتقال آن تصمیم‌گیری خواهد شد.",
-    goldFundProfitToman: 0, // Manual profit entered by admin based on day valuation (0 until entered)
-    goldFundValueToman: 20000000, // Total gold assets value (principal 20M + 0 profit by default)
+    goldInvestmentNote: "مبالغ پس‌انداز ماهانه (۵۰۰,۰۰۰ تومان در ماه به ازای هر سهم = ۵ میلیون تومان در ماه) در صندوق طلا سرمایه‌گذاری شده است. ارزش روز، سود انباشته و میزان نهایی دارایی در هر دوره محاسبه و اعلام می‌گردد.",
+    goldFundProfitToman: 5500000, // Manual profit entered by admin based on day valuation (5,500,000 Toman)
+    goldFundValueToman: 30500000, // Total gold assets value (principal 25M for 5 completed months + 5.5M profit = 30.5M)
     telegramBotToken: "",
     telegramChatId: "",
     enableTelegramNotification: true,
@@ -307,9 +307,9 @@ export function getInitialMockData(): {
       phone: "۰۹۰۲۴۴۴۴۴۴۴",
       password: "123",
       joinDateShamsi: "۱۴۰۳/۰۵/۰۱",
-      score: 60,
-      hasWon: false,
-      winMonth: null,
+      score: 120,
+      hasWon: true,
+      winMonth: "مهر ۱۴۰۵",
       avatarColor: "from-fuchsia-500 to-purple-600",
       isAppliedForLoan: false,
       isAppliedForEmergency: false,
@@ -608,10 +608,11 @@ export function getInitialMockData(): {
       goldInvestmentNote: "مبالغ پس‌انداز ماهانه (۵۰۰ هزار تومان در ماه به ازای هر سهم) در صندوق طلا سرمایه‌گذاری شده است. مبلغ نهایی پس‌انداز انباشته پس از پایان دوره و محاسبه ارزش روز مشخص و در مورد نحوه انتقال به دوره‌های بعدی تصمیم‌گیری خواهد شد.",
       accumulatedSavingsPool: 20000000,
       pastWinners: [
-        { monthName: "خرداد ۱۴۰۵", winnerName: "عبدالعلی ابراهیمی - خورشید سرخان جم" },
-        { monthName: "تیر ۱۴۰۵", winnerName: "نگار و عادل - راهنما" },
-        { monthName: "مرداد ۱۴۰۵", winnerName: "زینب سالاری - گوهران" },
-        { monthName: "شهریور ۱۴۰۵", winnerName: "صادق کاظمیان - ارگ رادکان" }
+        { monthName: "خرداد ۱۴۰۵", winnerName: "عبدالعلی ابراهیمی - خورشید سرخان جم", loanType: "main" },
+        { monthName: "تیر ۱۴۰۵", winnerName: "نگار و عادل - راهنما", loanType: "main" },
+        { monthName: "مرداد ۱۴۰۵", winnerName: "زینب سالاری - گوهران", loanType: "main" },
+        { monthName: "شهریور ۱۴۰۵", winnerName: "صادق کاظمیان - ارگ رادکان", loanType: "main" },
+        { monthName: "مهر ۱۴۰۵", winnerName: "منیر تقدیسی - نورخونه", loanType: "main" }
       ]
     }
   ];
@@ -664,6 +665,18 @@ export function getInitialMockData(): {
       participantsCount: 7,
       loanType: "main",
       cycleNumber: 3
+    },
+    {
+      id: "lot_5",
+      monthName: "مهر ۱۴۰۵",
+      winnerId: "mem_6",
+      winnerName: "منیر تقدیسی - نورخونه",
+      drawDateShamsi: "۱۴۰۵/۰۷/۰۱",
+      totalPoolAmount: 55000000,
+      drawMethod: "weighted",
+      participantsCount: 6,
+      loanType: "main",
+      cycleNumber: 3
     }
   ];
 
@@ -714,7 +727,19 @@ export function getInitialMockData(): {
     { id: "p_6_7", memberId: "mem_7", monthName: "شهریور ۱۴۰۵", amount: 5500000, savingsAmount: 500000, paymentDayShamsi: 2, paymentDateShamsi: "۱۴۰۵/۰۶/۰۲", scoreDelta: 0, status: "paid" },
     { id: "p_6_8", memberId: "mem_8", monthName: "شهریور ۱۴۰۵", amount: 5500000, savingsAmount: 500000, paymentDayShamsi: 4, paymentDateShamsi: "۱۴۰۵/۰۶/۰۴", scoreDelta: 60, status: "paid" },
     { id: "p_6_9", memberId: "mem_9", monthName: "شهریور ۱۴۰۵", amount: 5500000, savingsAmount: 500000, paymentDayShamsi: 1, paymentDateShamsi: "۱۴۰۵/۰۶/۰۱", scoreDelta: 0, status: "paid" },
-    { id: "p_6_10", memberId: "mem_10", monthName: "شهریور ۱۴۰۵", amount: 5500000, savingsAmount: 500000, paymentDayShamsi: 2, paymentDateShamsi: "۱۴۰۵/۰۶/۰۲", scoreDelta: 0, status: "paid" }
+    { id: "p_6_10", memberId: "mem_10", monthName: "شهریور ۱۴۰۵", amount: 5500000, savingsAmount: 500000, paymentDayShamsi: 2, paymentDateShamsi: "۱۴۰۵/۰۶/۰۲", scoreDelta: 0, status: "paid" },
+
+    // --- Mehr 1405 Payments (Completed 5th Month) ---
+    { id: "p_7_1", memberId: "mem_1", monthName: "مهر ۱۴۰۵", amount: 5500000, savingsAmount: 500000, paymentDayShamsi: 1, paymentDateShamsi: "۱۴۰۵/۰۷/۰۱", scoreDelta: 0, status: "paid" },
+    { id: "p_7_2", memberId: "mem_2", monthName: "مهر ۱۴۰۵", amount: 5500000, savingsAmount: 500000, paymentDayShamsi: 1, paymentDateShamsi: "۱۴۰۵/۰۷/۰۱", scoreDelta: 240, status: "paid" },
+    { id: "p_7_3", memberId: "mem_3", monthName: "مهر ۱۴۰۵", amount: 5500000, savingsAmount: 500000, paymentDayShamsi: 1, paymentDateShamsi: "۱۴۰۵/۰۷/۰۱", scoreDelta: 240, status: "paid" },
+    { id: "p_7_4", memberId: "mem_4", monthName: "مهر ۱۴۰۵", amount: 5500000, savingsAmount: 500000, paymentDayShamsi: 1, paymentDateShamsi: "۱۴۰۵/۰۷/۰۱", scoreDelta: 240, status: "paid" },
+    { id: "p_7_5", memberId: "mem_5", monthName: "مهر ۱۴۰۵", amount: 5500000, savingsAmount: 500000, paymentDayShamsi: 1, paymentDateShamsi: "۱۴۰۵/۰۷/۰۱", scoreDelta: 240, status: "paid" },
+    { id: "p_7_6", memberId: "mem_6", monthName: "مهر ۱۴۰۵", amount: 5500000, savingsAmount: 500000, paymentDayShamsi: 1, paymentDateShamsi: "۱۴۰۵/۰۷/۰۱", scoreDelta: 240, status: "paid" },
+    { id: "p_7_7", memberId: "mem_7", monthName: "مهر ۱۴۰۵", amount: 5500000, savingsAmount: 500000, paymentDayShamsi: 1, paymentDateShamsi: "۱۴۰۵/۰۷/۰۱", scoreDelta: 0, status: "paid" },
+    { id: "p_7_8", memberId: "mem_8", monthName: "مهر ۱۴۰۵", amount: 5500000, savingsAmount: 500000, paymentDayShamsi: 2, paymentDateShamsi: "۱۴۰۵/۰۷/۰۲", scoreDelta: 180, status: "paid" },
+    { id: "p_7_9", memberId: "mem_9", monthName: "مهر ۱۴۰۵", amount: 5500000, savingsAmount: 500000, paymentDayShamsi: 1, paymentDateShamsi: "۱۴۰۵/۰۷/۰۱", scoreDelta: 0, status: "paid" },
+    { id: "p_7_10", memberId: "mem_10", monthName: "مهر ۱۴۰۵", amount: 5500000, savingsAmount: 500000, paymentDayShamsi: 1, paymentDateShamsi: "۱۴۰۵/۰۷/۰۱", scoreDelta: 0, status: "paid" }
   ];
 
   return { members, payments, lotteries, settings, cycles };

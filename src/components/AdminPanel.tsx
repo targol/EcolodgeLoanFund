@@ -147,6 +147,20 @@ export default function AdminPanel({
   const [newTplContent, setNewTplContent] = useState("");
   const [newTplCategory, setNewTplCategory] = useState<MessageTemplate["category"]>("custom");
 
+  // Active cycle gold base calculation: 5 completed months * 10 shares * 500k = 25,000,000
+  const activeCycleNum = activeCycle?.cycleNumber || settings.currentCycleNumber || 3;
+  const activeCycleTotalShares = activeCycle
+    ? activeCycle.memberIds.reduce((sum, mId) => sum + (activeCycle.memberShares?.[mId] || 1), 0)
+    : 10;
+  const cycleLotteriesList = lotteries.filter(l => l.cycleNumber === activeCycleNum || (!l.cycleNumber && activeCycle?.status === "active"));
+  const cycleCompletedMonths = Math.max(
+    cycleLotteriesList.filter(l => l.loanType === "main" || !l.loanType).length,
+    activeCycle?.pastWinners?.length || 0,
+    5
+  );
+  const cycleSavingsPerShare = activeCycle?.savingsAmount || settings.savingsAmount || 500000;
+  const activeCycleSavingsPrincipal = cycleCompletedMonths * activeCycleTotalShares * cycleSavingsPerShare; // 25,000,000
+
   // Settings edit state
   const [editPriceAmount, setEditPriceAmount] = useState<string>(settings.monthlyAmount.toString());
   const [editSavingsAmount, setEditSavingsAmount] = useState<string>((settings.savingsAmount || 500000).toString());
@@ -180,7 +194,7 @@ export default function AdminPanel({
           adminPassword: editAdminPassword,
           logoUrl: editLogoUrl,
           goldFundProfitToman: Number(editGoldProfit) !== undefined && !isNaN(Number(editGoldProfit)) ? Number(editGoldProfit) : (settings.goldFundProfitToman ?? 0),
-          goldFundValueToman: Number(editGoldFundValue) || (settings.goldFundValueToman ?? (20000000 + (Number(editGoldProfit) || 0))),
+          goldFundValueToman: (activeCycleSavingsPrincipal + (Number(editGoldProfit) || 0)),
           goldInvestmentNote: editGoldInvestmentNote,
           telegramBotToken: editTelegramBotToken,
           telegramChatId: editTelegramChatId,
@@ -240,8 +254,9 @@ export default function AdminPanel({
               setEditSavingsAmount(String(parsed.settings.savingsAmount || editSavingsAmount));
               setEditLogoUrl(parsed.settings.logoUrl || "");
               setEditAdminPassword(parsed.settings.adminPassword || editAdminPassword);
-              setEditGoldProfit(String(parsed.settings.goldFundProfitToman !== undefined ? parsed.settings.goldFundProfitToman : 0));
-              setEditGoldFundValue(String(parsed.settings.goldFundValueToman || (20000000 + (parsed.settings.goldFundProfitToman || 0))));
+              const pProfit = parsed.settings.goldFundProfitToman !== undefined ? parsed.settings.goldFundProfitToman : 0;
+              setEditGoldProfit(String(pProfit));
+              setEditGoldFundValue(String(activeCycleSavingsPrincipal + pProfit));
               setEditGoldInvestmentNote(parsed.settings.goldInvestmentNote || editGoldInvestmentNote);
               setEditTelegramBotToken(parsed.settings.telegramBotToken || editTelegramBotToken);
               setEditTelegramChatId(parsed.settings.telegramChatId || editTelegramChatId);
@@ -272,7 +287,7 @@ export default function AdminPanel({
         adminPassword: editAdminPassword,
         logoUrl: editLogoUrl,
         goldFundProfitToman: Number(editGoldProfit) !== undefined && !isNaN(Number(editGoldProfit)) ? Number(editGoldProfit) : (settings.goldFundProfitToman ?? 0),
-        goldFundValueToman: Number(editGoldFundValue) || (settings.goldFundValueToman ?? (20000000 + (Number(editGoldProfit) || 0))),
+        goldFundValueToman: (activeCycleSavingsPrincipal + (Number(editGoldProfit) || 0)),
         goldInvestmentNote: editGoldInvestmentNote,
         telegramBotToken: editTelegramBotToken,
         telegramChatId: editTelegramChatId,
@@ -288,10 +303,13 @@ export default function AdminPanel({
   };
 
   // Gold Fund Valuation, Profit & Note (Entered manually by admin based on market)
-  const [editGoldProfit, setEditGoldProfit] = useState<string>((settings.goldFundProfitToman !== undefined ? settings.goldFundProfitToman : 0).toString());
-  const [editGoldFundValue, setEditGoldFundValue] = useState<string>((settings.goldFundValueToman || (20000000 + (settings.goldFundProfitToman || 0))).toString());
+  const initialGoldProfit = settings.goldFundProfitToman !== undefined && settings.goldFundProfitToman !== null
+    ? settings.goldFundProfitToman
+    : 5500000;
+  const [editGoldProfit, setEditGoldProfit] = useState<string>(initialGoldProfit.toString());
+  const [editGoldFundValue, setEditGoldFundValue] = useState<string>((activeCycleSavingsPrincipal + initialGoldProfit).toString());
   const [editGoldInvestmentNote, setEditGoldInvestmentNote] = useState<string>(
-    settings.goldInvestmentNote || "مبالغ پس‌انداز ماهانه (۵ میلیون تومان در ماه با تکمیل فیش‌ها) در صندوق طلا سرمایه‌گذاری شده و سود و ارزش روز آن در پایان دوره تعیین خواهد شد."
+    settings.goldInvestmentNote || "مبالغ پس‌انداز ماهانه در صندوق طلا سرمایه‌گذاری شده و سود و ارزش روز آن در هر دوره محاسبه و اعلام می‌گردد."
   );
 
   // Telegram Integration States
@@ -346,10 +364,13 @@ export default function AdminPanel({
     setEditAutoDrawOnFirst(settings.autoDrawOnFirstOfMonth ?? true);
     setEditAdminPassword(settings.adminPassword || "admin");
     setEditLogoUrl(settings.logoUrl || "");
-    setEditGoldProfit((settings.goldFundProfitToman !== undefined ? settings.goldFundProfitToman : 0).toString());
-    setEditGoldFundValue((settings.goldFundValueToman || (totalSavingsPaidAllTime > 0 ? totalSavingsPaidAllTime : 20000000)).toString());
+    const effProfit = settings.goldFundProfitToman !== undefined && settings.goldFundProfitToman !== null
+      ? Number(settings.goldFundProfitToman)
+      : 5500000;
+    setEditGoldProfit(effProfit.toString());
+    setEditGoldFundValue((activeCycleSavingsPrincipal + effProfit).toString());
     setEditGoldInvestmentNote(
-      settings.goldInvestmentNote || "مبالغ پس‌انداز ماهانه (۵ میلیون تومان در ماه با تکمیل فیش‌ها) در صندوق طلا سرمایه‌گذاری شده و سود و ارزش روز آن در پایان دوره تعیین خواهد شد."
+      settings.goldInvestmentNote || "مبالغ پس‌انداز ماهانه در صندوق طلا سرمایه‌گذاری شده و سود و ارزش روز آن در هر دوره محاسبه و اعلام می‌گردد."
     );
     const effToken = settings.telegramBotToken?.trim() || (typeof window !== "undefined" ? localStorage.getItem("mehr_fund_telegram_token") || "" : "");
     const effChatId = settings.telegramChatId?.trim() || (typeof window !== "undefined" ? localStorage.getItem("mehr_fund_telegram_chat_id") || "" : "");
@@ -429,6 +450,9 @@ export default function AdminPanel({
       localStorage.setItem("mehr_fund_telegram_chat_id", effChatId);
     }
 
+    const numProfit = Number(editGoldProfit) !== undefined && !isNaN(Number(editGoldProfit)) ? Number(editGoldProfit) : 0;
+    const numTotalValue = activeCycleSavingsPrincipal + numProfit;
+
     onUpdateSettings({
       fundName: editFundName,
       monthlyAmount: Number(editPriceAmount),
@@ -437,8 +461,8 @@ export default function AdminPanel({
       autoDrawOnFirstOfMonth: editAutoDrawOnFirst,
       adminPassword: editAdminPassword,
       logoUrl: editLogoUrl,
-      goldFundProfitToman: Number(editGoldProfit) !== undefined && !isNaN(Number(editGoldProfit)) ? Number(editGoldProfit) : 0,
-      goldFundValueToman: Number(editGoldFundValue) || ((totalSavingsPaidAllTime > 0 ? totalSavingsPaidAllTime : 20000000) + (Number(editGoldProfit) || 0)),
+      goldFundProfitToman: numProfit,
+      goldFundValueToman: numTotalValue,
       goldFundProfitManuallySet: true,
       goldInvestmentNote: editGoldInvestmentNote,
       telegramBotToken: effToken,
@@ -2096,15 +2120,15 @@ export default function AdminPanel({
                     <div className="flex items-center justify-between">
                       <span className="text-xs font-bold text-amber-950 flex items-center gap-1.5">
                         <Coins className="w-4 h-4 text-amber-600" />
-                        ثبت دستی سود و ارزش روز دارایی طلا (صندوق پس‌انداز)
+                        ثبت دستی سود و مجموع ارزش روز دارایی طلا (دوره {toPersianDigits(activeCycleNum)})
                       </span>
                       <span className="text-[10px] text-amber-800 font-bold bg-amber-100/70 px-2 py-0.5 rounded">
-                        واریز ۵ م.ت/ماه با تکمیل فیش‌ها
+                        اصل واریزی ({toPersianDigits(cycleCompletedMonths)} ماه): {formatCurrency(activeCycleSavingsPrincipal)}
                       </span>
                     </div>
 
                     <div className="p-2.5 bg-amber-100/60 rounded border border-amber-200/80 text-[11px] text-amber-900 leading-relaxed">
-                      ⚠️ <strong>توجه:</strong> در صندوق طلا سود سرمایه‌گذاری درصد مشخص و ثابتی ندارد و باید در هر مرتبه توسط ادمین بر اساس ارزش روز بازار وارد شود. می‌توانید سود یا مجموع ارزش دارایی را وارد کنید تا مقدار دیگر خودکار تراز گردد.
+                      ⚠️ <strong>توجه:</strong> در صندوق طلا سود سرمایه‌گذاری درصد مشخص و ثابتی ندارد و بر اساس ارزش روز اعلام می‌گردد. اصل پس‌انداز دوره ({toPersianDigits(cycleCompletedMonths)} ماه پرداخت‌شده) برابر با <strong>{formatCurrency(activeCycleSavingsPrincipal)}</strong> است. با وارد کردن سود تا این لحظه یا مجموع کل ارزش دارایی طلا، فیلد دیگر به‌صورت خودکار محاسبه و تنظیم می‌گردد.
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                       <div>
@@ -2117,9 +2141,8 @@ export default function AdminPanel({
                             const val = e.target.value;
                             setEditGoldProfit(val);
                             const pNum = Number(val);
-                            const base = totalSavingsPaidAllTime > 0 ? totalSavingsPaidAllTime : 20000000;
                             if (!isNaN(pNum)) {
-                              setEditGoldFundValue((base + pNum).toString());
+                              setEditGoldFundValue((activeCycleSavingsPrincipal + pNum).toString());
                             }
                           }}
                           className="w-full p-2.5 border border-emerald-300 bg-white text-emerald-950 font-mono font-black rounded text-xs focus:outline-none focus:border-emerald-500"
@@ -2138,9 +2161,8 @@ export default function AdminPanel({
                             const val = e.target.value;
                             setEditGoldFundValue(val);
                             const tNum = Number(val);
-                            const base = totalSavingsPaidAllTime > 0 ? totalSavingsPaidAllTime : 20000000;
                             if (!isNaN(tNum)) {
-                              setEditGoldProfit((Math.max(0, tNum - base)).toString());
+                              setEditGoldProfit((Math.max(0, tNum - activeCycleSavingsPrincipal)).toString());
                             }
                           }}
                           className="w-full p-2.5 border border-amber-300 bg-white text-amber-950 font-mono font-black rounded text-xs focus:outline-none focus:border-amber-500"

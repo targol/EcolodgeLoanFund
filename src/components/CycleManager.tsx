@@ -58,13 +58,14 @@ export default function CycleManager({
   useEffect(() => {
     const profit = (settings.goldFundProfitToman !== undefined && settings.goldFundProfitToman !== null)
       ? settings.goldFundProfitToman
-      : 0;
+      : 5500000;
     setGoldProfitInput(profit.toString());
 
-    if (settings.goldFundValueToman) {
+    const base = 25000000;
+    if (settings.goldFundValueToman && settings.goldFundValueToman === (base + profit)) {
       setGoldValueInput(settings.goldFundValueToman.toString());
     } else {
-      setGoldValueInput((25000000 + profit).toString());
+      setGoldValueInput((base + profit).toString());
     }
 
     setGoldNoteInput(
@@ -297,7 +298,7 @@ export default function CycleManager({
     .filter(p => p.status === "paid" && (!currentCycle || currentCycle.memberIds.includes(p.memberId)))
     .reduce((sum, p) => sum + (p.savingsAmount || 0), 0);
 
-  const baseSavingsDeposits = Math.max(calculatedSavingsByMonths, totalSavingsDeposited, currentCycle?.accumulatedSavingsPool || 0);
+  const baseSavingsDeposits = calculatedSavingsByMonths;
   const currentGoldProfit = Number(goldProfitInput) !== undefined && !isNaN(Number(goldProfitInput))
     ? Number(goldProfitInput)
     : (settings.goldFundProfitToman ?? (currentCycle?.goldFundProfitToman ?? 0));

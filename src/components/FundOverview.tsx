@@ -93,10 +93,6 @@ export default function FundOverview({ members, payments, lotteries, settings, c
   // Scoring leaderboards (highest score first)
   const topMembers = [...activeCycleMembers].sort((a, b) => b.score - a.score).slice(0, 3);
 
-  // Latest lottery winner for hero presentation
-  const latestMainWinner = [...cycleLotteries].reverse().find(l => l.loanType === "main" || !l.loanType);
-  const latestLotteryWinner = latestMainWinner || (lotteries.length > 0 ? lotteries[lotteries.length - 1] : null);
-
   // Unified list of winners for the active cycle history
   const activeCycleWinnersList = (() => {
     const list: { id: string; monthName: string; winnerName: string; totalPoolAmount: number; loanType: string; drawMethod?: string }[] = [];
@@ -132,6 +128,10 @@ export default function FundOverview({ members, payments, lotteries, settings, c
 
     return list;
   })();
+
+  // Latest lottery winner for hero presentation (takes the latest main winner of active cycle)
+  const latestMainWinner = [...activeCycleWinnersList].reverse().find(w => w.loanType === "main" || !w.loanType);
+  const latestLotteryWinner = latestMainWinner || (activeCycleWinnersList.length > 0 ? activeCycleWinnersList[activeCycleWinnersList.length - 1] : (lotteries.length > 0 ? lotteries[lotteries.length - 1] : null));
 
   return (
     <div className="space-y-6 font-sans" id="fund-overview-container">

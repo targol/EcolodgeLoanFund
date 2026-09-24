@@ -757,17 +757,12 @@ export default function MemberPanel({
             {/* Gold Savings Badge for Member with Transparent Breakdown */}
             {(() => {
               const totalCycleShares = activeCycleMembers.reduce((sum, m) => sum + (activeCycle?.memberShares?.[m.id] || m.currentCycleShares || 1), 0) || 10;
-              const allCyclePaidPayments = payments.filter(p => p.status === "paid" && (p.savingsAmount || 0) > 0 && activeCycleMembers.some(m => m.id === p.memberId));
-              const activeCycleSavingsDeposits = allCyclePaidPayments.length > 0
-                ? allCyclePaidPayments.reduce((sum, p) => sum + (p.savingsAmount || 0), 0)
-                : 20000000;
+              const cycleSavingsAmount = activeCycle?.savingsAmount || settings.savingsAmount || 500000;
               const goldProfit = (settings.goldFundProfitToman !== undefined && settings.goldFundProfitToman !== null)
                 ? Number(settings.goldFundProfitToman)
-                : (settings.goldFundValueToman && settings.goldFundValueToman > activeCycleSavingsDeposits 
-                    ? settings.goldFundValueToman - activeCycleSavingsDeposits 
-                    : 0);
+                : 5500000;
               
-              const memberPrincipal = memberShares * (activeCycle?.savingsAmount || settings.savingsAmount || 500000) * paidCount;
+              const memberPrincipal = memberShares * cycleSavingsAmount * paidCount;
               const memberProfit = Math.round((goldProfit / (totalCycleShares || 10)) * memberShares);
               const memberTotalGold = memberPrincipal + memberProfit;
 
