@@ -1895,6 +1895,7 @@ export default function AdminPanel({
             cycles={cycles}
             members={members}
             payments={payments}
+            lotteries={lotteries}
             settings={settings}
             onAddCycle={onAddCycle || (() => {})}
             onUpdateCycle={onUpdateCycle || (() => {})}

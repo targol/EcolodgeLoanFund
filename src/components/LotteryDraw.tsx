@@ -405,15 +405,34 @@ export default function LotteryDraw({
         finalMethod = drawMethod === "manual" ? "emergency_manual" : "emergency_random";
       }
 
-      // Auto send text notification if enabled
+      // Auto send text notification if enabled (wrapped in try/catch to prevent blocking state save)
       if (settings.enableTelegramNotification && settings.telegramBotToken && settings.telegramChatId) {
-        await handleSendTelegramNotification(simulationWinnerName);
+        try {
+          await handleSendTelegramNotification(simulationWinnerName);
+        } catch (e) {
+          console.error("Telegram notification error:", e);
+        }
       }
 
       onDrawSuccess(selectedWinnerId, finalMethod, loanType, customPayoutAmount || totalPoolAmount, customWinDate);
       setSelectedWinnerId(null);
       setHasFinishedDrawing(false);
       setVideoState({ isGenerating: false, progress: 0, videoBlob: null, videoUrl: null, fileName: null });
+    }
+  };
+
+  // Immediate 1-step direct winner registration for manual selection
+  const handleQuickRegisterWinner = (memberId: string) => {
+    const targetMember = members.find(m => m.id === memberId);
+    if (!targetMember) return;
+    const currentMonthLabel = `${PERS_MONTH_NAMES[settings.currentMonthIndex]} ${settings.currentYear}`;
+    const loanLabel = loanType === "main" ? "وام اصلی" : "وام ضروری";
+    if (window.confirm(`آیا از ثبت مستقیم «${targetMember.name}» به عنوان برنده ${loanLabel} ماه ${currentMonthLabel} و ثبت در سامانه اطمینان دارید؟`)) {
+      const finalMethod = loanType === "emergency" ? "emergency_manual" : "manual";
+      const amount = customPayoutAmount || totalPoolAmount;
+      onDrawSuccess(memberId, finalMethod, loanType, amount, customWinDate);
+      setSelectedWinnerId(null);
+      setHasFinishedDrawing(false);
     }
   };
 
@@ -517,6 +536,51 @@ export default function LotteryDraw({
           </div>
         </div>
       </div>
+
+      {/* Quick summary of completed months and winners in this cycle */}
+      {lotteries && lotteries.length > 0 && (
+        <div className="p-3 bg-gradient-to-r from-teal-50/70 via-slate-50 to-amber-50/60 rounded-xl border border-teal-200/80 space-y-2">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h4 className="text-xs font-black text-slate-800 flex items-center gap-1.5">
+              <Trophy className="w-4 h-4 text-amber-500" />
+              <span>ماه‌های انجام‌شده و برندگان ثبت‌شده این دوره ({toPersianDigits(lotteries.length)} ماه):</span>
+            </h4>
+            <div className="flex items-center gap-2">
+              <span className="text-[10.5px] bg-teal-800 text-white font-black px-2.5 py-0.5 rounded-full shadow-2xs">
+                ماه نوبت بعدی قرعه‌کشی: {currentMonthName}
+              </span>
+              {onUndoLottery && (
+                <button
+                  type="button"
+                  onClick={() => setShowHistoryModal(true)}
+                  className="text-[10px] text-indigo-700 hover:text-indigo-900 font-bold underline cursor-pointer"
+                >
+                  ویرایش / لغو قرعه‌های قبل
+                </button>
+              )}
+            </div>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2 text-xs">
+            {lotteries.map((lot, idx) => (
+              <div key={lot.id || idx} className="p-2 bg-white rounded-lg border border-slate-200 shadow-2xs">
+                <div className="flex items-center justify-between gap-1 text-[10px] text-teal-850 font-black">
+                  <span>{lot.monthName}</span>
+                  <span className="w-4 h-4 rounded-full bg-teal-100 text-teal-900 flex items-center justify-center font-mono text-[9px] font-bold">
+                    {toPersianDigits(idx + 1)}
+                  </span>
+                </div>
+                <div className="font-bold text-slate-850 text-[11px] truncate mt-1" title={lot.winnerName}>
+                  {lot.winnerName}
+                </div>
+                <div className="text-[9px] text-slate-400 mt-0.5 flex items-center justify-between">
+                  <span>{lot.loanType === "emergency" ? "وام ضروری" : "وام اصلی"}</span>
+                  <span className="text-emerald-600 font-bold">✓ ثبت شد</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
         
@@ -870,6 +934,19 @@ export default function LotteryDraw({
                     </option>
                   ))}
                 </select>
+
+                {selectedWinnerId && (
+                  <div className="pt-2">
+                    <button
+                      type="button"
+                      onClick={() => handleQuickRegisterWinner(selectedWinnerId)}
+                      className="w-full py-2 px-3 bg-emerald-750 hover:bg-emerald-800 text-white rounded-lg text-xs font-black flex items-center justify-center gap-1.5 shadow-xs transition-all cursor-pointer"
+                    >
+                      <CheckCircle2 className="w-4 h-4" />
+                      <span>ثبت قطعی و اعلام فوری «{members.find(m => m.id === selectedWinnerId)?.name}» به عنوان برنده</span>
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
           )}

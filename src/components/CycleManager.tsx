@@ -12,6 +12,7 @@ interface CycleManagerProps {
   cycles: FundCycle[];
   members: Member[];
   payments?: Payment[];
+  lotteries?: any[];
   settings: FundSettings;
   onAddCycle: (newCycle: FundCycle) => void;
   onUpdateCycle: (cycleId: string, updatedFields: Partial<FundCycle>) => void;
@@ -24,6 +25,7 @@ export default function CycleManager({
   cycles,
   members,
   payments = [],
+  lotteries = [],
   settings,
   onAddCycle,
   onUpdateCycle,
@@ -734,36 +736,59 @@ export default function CycleManager({
               </div>
 
               {/* Past Winners / Lottery History in this cycle */}
-              {currentCycle.pastWinners && currentCycle.pastWinners.length > 0 && (
-                <div>
-                  <h4 className="text-xs font-bold text-slate-800 flex items-center gap-1.5 mb-3">
-                    <Trophy className="w-4 h-4 text-amber-600" />
-                    <span>تاریخچه برندگان و پرداخت تسهیلات در این دوره ({toPersianDigits(currentCycle.pastWinners.length)} مورد)</span>
-                  </h4>
+              {(() => {
+                const combinedWinners: { monthName: string; winnerName: string; loanType?: string }[] = [];
+                if (currentCycle.pastWinners) {
+                  combinedWinners.push(...currentCycle.pastWinners);
+                }
+                if (lotteries && lotteries.length > 0) {
+                  lotteries.forEach((lot: any) => {
+                    if (lot.cycleNumber === currentCycle.cycleNumber || (!lot.cycleNumber && currentCycle.status === "active")) {
+                      const already = combinedWinners.some(
+                        (w) => w.monthName === lot.monthName && w.winnerName === lot.winnerName
+                      );
+                      if (!already) {
+                        combinedWinners.push({
+                          monthName: lot.monthName,
+                          winnerName: lot.winnerName,
+                          loanType: lot.loanType
+                        });
+                      }
+                    }
+                  });
+                }
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 text-xs">
-                    {currentCycle.pastWinners.map((win, idx) => (
-                      <div
-                        key={idx}
-                        className="p-2.5 bg-amber-50/40 border border-amber-200/80 rounded-lg flex items-center justify-between"
-                      >
-                        <div className="flex items-center gap-2 overflow-hidden">
-                          <span className="w-5 h-5 rounded-full bg-amber-200 text-amber-900 font-mono font-bold text-[10px] flex items-center justify-center shrink-0">
-                            {toPersianDigits(idx + 1)}
-                          </span>
-                          <div className="truncate">
-                            <span className="font-bold text-slate-850 block truncate">{win.winnerName}</span>
-                            <span className="text-[10px] text-amber-800 font-mono">{win.monthName}</span>
+                return combinedWinners.length > 0 ? (
+                  <div>
+                    <h4 className="text-xs font-bold text-slate-800 flex items-center gap-1.5 mb-3">
+                      <Trophy className="w-4 h-4 text-amber-600" />
+                      <span>تاریخچه برندگان و پرداخت تسهیلات در این دوره ({toPersianDigits(combinedWinners.length)} مورد)</span>
+                    </h4>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 text-xs">
+                      {combinedWinners.map((win, idx) => (
+                        <div
+                          key={idx}
+                          className="p-2.5 bg-amber-50/40 border border-amber-200/80 rounded-lg flex items-center justify-between"
+                        >
+                          <div className="flex items-center gap-2 overflow-hidden">
+                            <span className="w-5 h-5 rounded-full bg-amber-200 text-amber-900 font-mono font-bold text-[10px] flex items-center justify-center shrink-0">
+                              {toPersianDigits(idx + 1)}
+                            </span>
+                            <div className="truncate">
+                              <span className="font-bold text-slate-850 block truncate">{win.winnerName}</span>
+                              <span className="text-[10px] text-amber-800 font-mono">{win.monthName}</span>
+                            </div>
                           </div>
+                          <span className="text-[10px] text-emerald-700 font-bold bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200 shrink-0">
+                            {win.loanType === "emergency" ? "وام ضروری" : "پرداخت شد"}
+                          </span>
                         </div>
-                        <span className="text-[10px] text-emerald-700 font-bold bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200 shrink-0">
-                          {win.loanType === "emergency" ? "وام ضروری" : "پرداخت شد"}
-                        </span>
-                      </div>
-                    ))}
+                      ))}
+                    </div>
                   </div>
-                </div>
-              )}
+                ) : null;
+              })()}
             </div>
           )}
         </div>

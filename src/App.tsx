@@ -847,9 +847,30 @@ export default function App() {
       totalPoolAmount: totalAmount,
       drawMethod: method,
       participantsCount: members.length,
-      loanType: loanType
+      loanType: loanType,
+      cycleNumber: settings.currentCycleNumber || 3
     };
     const updatedLotteries = [...lotteries, newResult];
+
+    // Also update pastWinners for the current cycle
+    const currentCNum = settings.currentCycleNumber || 3;
+    const updatedCycles = cycles.map(c => {
+      if (c.cycleNumber === currentCNum) {
+        const past = c.pastWinners || [];
+        const alreadyHas = past.some(pw => pw.monthName === currentMonthName && pw.winnerName === winnerName);
+        if (!alreadyHas) {
+          return {
+            ...c,
+            pastWinners: [...past, {
+              monthName: currentMonthName,
+              winnerName,
+              loanType
+            }]
+          };
+        }
+      }
+      return c;
+    });
 
     // 3. Increment the month (Rotate to next month) ONLY if drawing MAIN loan
     let updatedSettings = { ...settings };
@@ -867,7 +888,7 @@ export default function App() {
       };
     }
 
-    persistState(finalMembers, payments, updatedLotteries, updatedSettings);
+    persistState(finalMembers, payments, updatedLotteries, updatedSettings, updatedCycles);
     setIsAdminAuthenticated(true); // retains active authentication smoothly
     
     if (showResetNotification) {
@@ -895,7 +916,18 @@ export default function App() {
       return m;
     });
 
-    // 3. If it was main loan and it was the latest drawn lottery, revert currentMonthIndex
+    // 3. Remove from cycles pastWinners
+    const updatedCycles = cycles.map(c => {
+      if (c.pastWinners) {
+        return {
+          ...c,
+          pastWinners: c.pastWinners.filter(pw => !(pw.monthName === targetLottery.monthName && pw.winnerName === targetLottery.winnerName))
+        };
+      }
+      return c;
+    });
+
+    // 4. If it was main loan and it was the latest drawn lottery, revert currentMonthIndex
     let updatedSettings = { ...settings };
     if (targetLottery.loanType === "main" || !targetLottery.loanType) {
       let prevMonthIndex = settings.currentMonthIndex - 1;
@@ -911,7 +943,7 @@ export default function App() {
       };
     }
 
-    persistState(updatedMembers, payments, updatedLotteries, updatedSettings);
+    persistState(updatedMembers, payments, updatedLotteries, updatedSettings, updatedCycles);
   };
 
   // Update Settings
