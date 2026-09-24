@@ -42,32 +42,33 @@ export default function CycleManager({
   const [viewMode, setViewMode] = useState<"detail" | "matrix" | "gold_tracker">("detail");
 
   // Admin Gold Valuation Live Input States (Principal + Profit = Total Value)
-  const [goldProfitInput, setGoldProfitInput] = useState<string>(
-    (settings.goldFundProfitToman !== undefined ? settings.goldFundProfitToman : 0).toString()
-  );
+  const initialProfit = settings.goldFundProfitToman !== undefined && settings.goldFundProfitToman !== null
+    ? settings.goldFundProfitToman
+    : 0;
+
+  const [goldProfitInput, setGoldProfitInput] = useState<string>(initialProfit.toString());
   const [goldValueInput, setGoldValueInput] = useState<string>(
-    (settings.goldFundValueToman || (20000000 + (settings.goldFundProfitToman || 0))).toString()
+    (settings.goldFundValueToman || (25000000 + initialProfit)).toString()
   );
   const [goldNoteInput, setGoldNoteInput] = useState<string>(
-    settings.goldInvestmentNote || "مبالغ پس‌انداز ماهانه (۵ میلیون تومان در ماه با تکمیل فیش‌ها) در صندوق طلا سرمایه‌گذاری شده و سود و ارزش روز آن در پایان دوره تعیین خواهد شد."
+    settings.goldInvestmentNote || "مبالغ پس‌انداز ماهانه در صندوق طلا سرمایه‌گذاری شده و سود و ارزش روز آن در هر دوره اعلام می‌شود."
   );
   const [goldSaveSuccess, setGoldSaveSuccess] = useState(false);
 
   useEffect(() => {
     const profit = (settings.goldFundProfitToman !== undefined && settings.goldFundProfitToman !== null)
       ? settings.goldFundProfitToman
-      : (settings.goldFundValueToman && settings.goldFundValueToman > 20000000 
-          ? settings.goldFundValueToman - 20000000 
-          : 0);
+      : 0;
     setGoldProfitInput(profit.toString());
 
-    const totalVal = (settings.goldFundValueToman && settings.goldFundValueToman >= 20000000)
-      ? settings.goldFundValueToman
-      : (20000000 + profit);
-    setGoldValueInput(totalVal.toString());
+    if (settings.goldFundValueToman) {
+      setGoldValueInput(settings.goldFundValueToman.toString());
+    } else {
+      setGoldValueInput((25000000 + profit).toString());
+    }
 
     setGoldNoteInput(
-      settings.goldInvestmentNote || "مبالغ پس‌انداز ماهانه (۵ میلیون تومان در ماه با تکمیل فیش‌ها) در صندوق طلا سرمایه‌گذاری شده و سود و ارزش روز آن در پایان دوره تعیین خواهد شد."
+      settings.goldInvestmentNote || "مبالغ پس‌انداز ماهانه در صندوق طلا سرمایه‌گذاری شده و سود و ارزش روز آن در هر دوره اعلام می‌شود."
     );
   }, [settings.goldFundValueToman, settings.goldFundProfitToman, settings.goldInvestmentNote]);
 
@@ -102,9 +103,16 @@ export default function CycleManager({
         goldFundProfitManuallySet: true,
         goldInvestmentNote: goldNoteInput
       });
-      setGoldSaveSuccess(true);
-      setTimeout(() => setGoldSaveSuccess(false), 3000);
     }
+    if (currentCycle && onUpdateCycle) {
+      onUpdateCycle(currentCycle.id, {
+        goldFundProfitToman: numericProfit,
+        accumulatedSavingsPool: baseSavingsDeposits,
+        goldInvestmentNote: goldNoteInput
+      });
+    }
+    setGoldSaveSuccess(true);
+    setTimeout(() => setGoldSaveSuccess(false), 3000);
   };
 
   // New Cycle Form state
@@ -271,15 +279,28 @@ export default function CycleManager({
     return sum + (currentCycle.memberShares?.[mId] || 1);
   }, 0) || currentCycle?.memberIds.length || 10;
 
-  // Calculate total savings deposits from paid payments (5M Toman per completed month of 10 shares)
+  // Completed months in current cycle (derived from lotteries or pastWinners, minimum 5 for cycle 3)
+  const cycleLotteries = lotteries ? lotteries.filter(l => l.cycleNumber === currentCycle?.cycleNumber || (!l.cycleNumber && currentCycle?.status === "active")) : [];
+  const completedMonthsCount = Math.max(
+    cycleLotteries.filter(l => l.loanType === "main" || !l.loanType).length,
+    currentCycle?.pastWinners?.length || 0,
+    currentCycle?.cycleNumber === 3 ? 5 : 1
+  );
+
+  // Calculate total savings deposits:
+  // Principle is strictly based on: completedMonthsCount * totalShares * savingsAmount
+  const cycleSavingsPerShare = currentCycle?.savingsAmount || settings.savingsAmount || 500000;
+  const cycleMonthlySavingsPool = totalShares * cycleSavingsPerShare; // e.g. 10 * 500k = 5,000,000
+  const calculatedSavingsByMonths = completedMonthsCount * cycleMonthlySavingsPool; // e.g. 5 * 5M = 25,000,000
+
   const totalSavingsDeposited = payments
     .filter(p => p.status === "paid" && (!currentCycle || currentCycle.memberIds.includes(p.memberId)))
     .reduce((sum, p) => sum + (p.savingsAmount || 0), 0);
 
-  const baseSavingsDeposits = totalSavingsDeposited > 0 ? totalSavingsDeposited : 20000000;
+  const baseSavingsDeposits = Math.max(calculatedSavingsByMonths, totalSavingsDeposited, currentCycle?.accumulatedSavingsPool || 0);
   const currentGoldProfit = Number(goldProfitInput) !== undefined && !isNaN(Number(goldProfitInput))
     ? Number(goldProfitInput)
-    : (settings.goldFundProfitToman ?? 0);
+    : (settings.goldFundProfitToman ?? (currentCycle?.goldFundProfitToman ?? 0));
   const currentGoldFundValuation = baseSavingsDeposits + currentGoldProfit;
   const goldProfitToman = currentGoldProfit;
   const goldGrowthRatePercent = baseSavingsDeposits > 0 
@@ -601,38 +622,56 @@ export default function CycleManager({
               </div>
 
               {/* Cycle Financial Metrics */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                <div className="p-3 bg-slate-50 rounded-lg border border-slate-150">
-                  <span className="text-[11px] text-slate-400 block font-medium">مبلغ قسط ثابت ماهانه</span>
-                  <span className="text-sm font-black text-slate-850 mt-1 block">
-                    {formatCurrency(currentCycle.monthlyAmount)}
-                  </span>
-                  <span className="text-[10px] text-slate-400">به ازای هر سهم</span>
+              <div className="space-y-2">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  <div className="p-3 bg-slate-50 rounded-lg border border-slate-150">
+                    <span className="text-[11px] text-slate-400 block font-medium">مبلغ قسط ثابت ماهانه</span>
+                    <span className="text-sm font-black text-slate-850 mt-1 block">
+                      {formatCurrency(currentCycle.monthlyAmount)}
+                    </span>
+                    <span className="text-[10px] text-slate-400">به ازای هر سهم</span>
+                  </div>
+
+                  <div className="p-3 bg-teal-50/60 rounded-lg border border-teal-150">
+                    <span className="text-[11px] text-teal-700 block font-medium">مبلغ پس‌انداز ماهانه (صندوق طلا)</span>
+                    <span className="text-sm font-black text-teal-900 mt-1 block">
+                      {formatCurrency(currentCycle.savingsAmount)}
+                    </span>
+                    <span className="text-[10px] text-teal-600">به ازای هر سهم در ماه</span>
+                  </div>
+
+                  <div className="p-3 bg-slate-50 rounded-lg border border-slate-150">
+                    <span className="text-[11px] text-slate-400 block font-medium">مجموع پرداختی ماهانه هر سهم</span>
+                    <span className="text-sm font-black text-slate-850 mt-1 block">
+                      {formatCurrency(currentCycle.monthlyAmount + currentCycle.savingsAmount)}
+                    </span>
+                    <span className="text-[10px] text-slate-400">قسط + پس‌انداز طلا</span>
+                  </div>
+
+                  <div className="p-3 bg-indigo-50/60 rounded-lg border border-indigo-150">
+                    <span className="text-[11px] text-indigo-700 block font-medium">مبلغ کل وام قرعه‌کشی</span>
+                    <span className="text-sm font-black text-indigo-900 mt-1 block">
+                      {formatCurrency(currentCycle.monthlyAmount * totalShares)}
+                    </span>
+                    <span className="text-[10px] text-indigo-600">{toPersianDigits(totalShares)} سهم مشارکت</span>
+                  </div>
                 </div>
 
-                <div className="p-3 bg-teal-50/60 rounded-lg border border-teal-150">
-                  <span className="text-[11px] text-teal-700 block font-medium">مبلغ پس‌انداز ماهانه (صندوق طلا)</span>
-                  <span className="text-sm font-black text-teal-900 mt-1 block">
-                    {formatCurrency(currentCycle.savingsAmount)}
-                  </span>
-                  <span className="text-[10px] text-teal-600">به ازای هر سهم در ماه</span>
-                </div>
-
-                <div className="p-3 bg-slate-50 rounded-lg border border-slate-150">
-                  <span className="text-[11px] text-slate-400 block font-medium">مجموع پرداختی ماهانه هر سهم</span>
-                  <span className="text-sm font-black text-slate-850 mt-1 block">
-                    {formatCurrency(currentCycle.monthlyAmount + currentCycle.savingsAmount)}
-                  </span>
-                  <span className="text-[10px] text-slate-400">قسط + پس‌انداز</span>
-                </div>
-
-                <div className="p-3 bg-indigo-50/60 rounded-lg border border-indigo-150">
-                  <span className="text-[11px] text-indigo-700 block font-medium">مبلغ کل وام قرعه‌کشی</span>
-                  <span className="text-sm font-black text-indigo-900 mt-1 block">
-                    {formatCurrency(currentCycle.monthlyAmount * totalShares)}
-                  </span>
-                  <span className="text-[10px] text-indigo-600">{toPersianDigits(totalShares)} سهم مشارکت</span>
-                </div>
+                {!isCurrentCycleLocked && (
+                  <div className="flex items-center justify-between p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs">
+                    <span className="text-slate-600 font-medium">
+                      مبالغ قسط ماهانه ({formatCurrency(currentCycle.monthlyAmount)}) و پس‌انداز طلا ({formatCurrency(currentCycle.savingsAmount)}) در هر دوره قابل تنظیم و ویرایش مستقل است.
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setIsEditCycleModalOpen(true)}
+                      className="px-3 py-1 bg-white hover:bg-teal-50 text-teal-800 border border-teal-200 rounded font-bold transition-all shadow-2xs cursor-pointer flex items-center gap-1 shrink-0"
+                    >
+                      <Edit3 className="w-3.5 h-3.5 text-teal-700" />
+                      <span>تنظیم مبالغ و سهم‌های این دوره</span>
+                    </button>
+                  </div>
+                )}
               </div>
 
               {/* Cycle Notes / Gold strategy */}
@@ -995,7 +1034,7 @@ export default function CycleManager({
                     </span>
                   </div>
                   <span className="text-[10px] text-slate-500 leading-tight">
-                    هر ماه با پرداخت فیش‌های اعضا (۱۰ سهم × ۵۰۰ هزار تومان = ۵ میلیون تومان در ماه) به صورت خودکار محاسبه می‌گردد.
+                    بر اساس {toPersianDigits(completedMonthsCount)} ماه پرداخت‌شده ({toPersianDigits(totalShares)} سهم × {formatCurrency(currentCycle?.savingsAmount || 500000)} = {formatCurrency(totalShares * (currentCycle?.savingsAmount || 500000))} در ماه).
                   </span>
                 </div>
               </div>

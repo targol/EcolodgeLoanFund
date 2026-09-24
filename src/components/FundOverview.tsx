@@ -46,29 +46,36 @@ export default function FundOverview({ members, payments, lotteries, settings, c
   const totalCollectedSavingsMonth = currentMonthPayments.reduce((sum, p) => sum + (p.savingsAmount || 0), 0);
   const totalCollectedMonth = totalCollectedLoanMonth + totalCollectedSavingsMonth;
 
-  // Accumulated Savings portfolio sum across cycle (Gold Fund Principal)
-  const allPaidPayments = payments.filter(p => p.status === "paid");
-  const accumulatedSavingsTotal = allPaidPayments.reduce((sum, p) => sum + (p.savingsAmount || 0), 0);
+  // Current Cycle Lotteries & Completed Months Count
+  const currentCycleNumber = activeCycle?.cycleNumber || settings.currentCycleNumber || 3;
+  const cycleLotteries = lotteries.filter(l => l.cycleNumber === currentCycleNumber || (!l.cycleNumber && activeCycle?.status === "active"));
   
-  // Total Gold Fund Principal Deposits (5M Toman deposited per completed month with receipts)
-  const totalGoldDeposits = accumulatedSavingsTotal > 0 
-    ? accumulatedSavingsTotal 
-    : (activeCycle?.accumulatedSavingsPool || 20000000);
+  // Completed months in active cycle (based on lotteries or pastWinners, minimum 5 for cycle 3)
+  const completedMonthsCount = Math.max(
+    cycleLotteries.filter(l => l.loanType === "main" || !l.loanType).length,
+    activeCycle?.pastWinners?.length || 0,
+    5
+  );
 
-  // Profit up to this moment (entered manually by admin based on market valuation)
+  // Accumulated Savings portfolio sum across cycle (Gold Fund Principal):
+  // Formula: completedMonthsCount * totalActiveShares * monthlySavingsAmount
+  const monthlySavingsPool = totalActiveShares * monthlySavingsAmount;
+  const totalGoldDeposits = completedMonthsCount * monthlySavingsPool; // e.g. 5 * 10 * 500k = 25,000,000
+
+  // Profit up to this moment announced by admin (total profit from cycle start up to now)
   const goldProfitToman = (settings.goldFundProfitToman !== undefined && settings.goldFundProfitToman !== null)
     ? Number(settings.goldFundProfitToman)
-    : (settings.goldFundValueToman && settings.goldFundValueToman > totalGoldDeposits 
-        ? settings.goldFundValueToman - totalGoldDeposits 
-        : 0);
+    : (activeCycle?.goldFundProfitToman ?? 0);
 
-  // Total Gold Asset Value = Principal + Profit
+  // Total Gold Asset Value = Principal (from paid months) + Profit up to now
   const totalGoldValue = totalGoldDeposits + goldProfitToman;
-  const hasRegisteredProfit = (settings.goldFundProfitToman !== undefined && settings.goldFundProfitToman !== null && Number(settings.goldFundProfitToman) > 0)
-    || (settings.goldFundValueToman && settings.goldFundValueToman > totalGoldDeposits);
+  const hasRegisteredProfit = goldProfitToman > 0;
   const goldGrowthPercent = totalGoldDeposits > 0 
     ? ((goldProfitToman / totalGoldDeposits) * 100).toFixed(1) 
     : "0";
+
+  // Gold per share breakdown
+  const goldTotalPerShare = totalActiveShares > 0 ? Math.round(totalGoldValue / totalActiveShares) : 0;
 
   // Spent emergency loans from savings
   const totalEmergencyLoansPaid = lotteries
@@ -76,6 +83,8 @@ export default function FundOverview({ members, payments, lotteries, settings, c
     .reduce((sum, l) => sum + l.totalPoolAmount, 0);
 
   // Available emergency loan pool
+  const allPaidPayments = payments.filter(p => p.status === "paid");
+  const accumulatedSavingsTotal = Math.max(totalGoldDeposits, allPaidPayments.reduce((sum, p) => sum + (p.savingsAmount || 0), 0));
   const netEmergencyPoolAvailable = Math.max(0, accumulatedSavingsTotal - totalEmergencyLoansPaid);
 
   // Total life of fund pool (all paid amount including installments & savings)
@@ -84,14 +93,97 @@ export default function FundOverview({ members, payments, lotteries, settings, c
   // Scoring leaderboards (highest score first)
   const topMembers = [...activeCycleMembers].sort((a, b) => b.score - a.score).slice(0, 3);
 
-  // Last lottery winner for hero presentation
-  const latestLotteryWinner = lotteries.length > 0 ? lotteries[lotteries.length - 1] : null;
+  // Latest lottery winner for hero presentation
+  const latestMainWinner = [...cycleLotteries].reverse().find(l => l.loanType === "main" || !l.loanType);
+  const latestLotteryWinner = latestMainWinner || (lotteries.length > 0 ? lotteries[lotteries.length - 1] : null);
+
+  // Unified list of winners for the active cycle history
+  const activeCycleWinnersList = (() => {
+    const list: { id: string; monthName: string; winnerName: string; totalPoolAmount: number; loanType: string; drawMethod?: string }[] = [];
+    
+    // First from lotteries matching this cycle
+    cycleLotteries.forEach((lot) => {
+      list.push({
+        id: lot.id,
+        monthName: lot.monthName,
+        winnerName: lot.winnerName,
+        totalPoolAmount: lot.totalPoolAmount || expectedMonthlyLoanPool,
+        loanType: lot.loanType || "main",
+        drawMethod: lot.drawMethod
+      });
+    });
+
+    // Also include pastWinners from cycle definition if not in list
+    if (activeCycle?.pastWinners) {
+      activeCycle.pastWinners.forEach((pw, idx) => {
+        const exists = list.some(item => item.monthName === pw.monthName && item.winnerName === pw.winnerName);
+        if (!exists) {
+          list.push({
+            id: `past_${idx}`,
+            monthName: pw.monthName,
+            winnerName: pw.winnerName,
+            totalPoolAmount: expectedMonthlyLoanPool,
+            loanType: pw.loanType || "main",
+            drawMethod: "manual"
+          });
+        }
+      });
+    }
+
+    return list;
+  })();
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-3 gap-6" id="fund-overview-container">
-      {/* Right Column (2/3 width on desktop) - Key Statistics Cards */}
-      <div className="md:col-span-2 space-y-6">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+    <div className="space-y-6 font-sans" id="fund-overview-container">
+      {/* Prominent Hero Showcase for Latest Lottery Winner (Board Top Highlight) */}
+      {latestLotteryWinner && (
+        <motion.div 
+          initial={{ opacity: 0, y: -8 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="bg-gradient-to-r from-teal-950 via-teal-900 to-emerald-950 text-white rounded-2xl p-4 sm:p-5 shadow-md border border-teal-800/80 relative overflow-hidden flex flex-col md:flex-row items-center justify-between gap-4"
+        >
+          <div className="flex items-center gap-3.5 z-10 w-full md:w-auto">
+            <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-amber-400 to-amber-500 text-amber-950 flex items-center justify-center shrink-0 shadow-md">
+              <Trophy className="w-6 h-6" />
+            </div>
+            <div className="space-y-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-[10px] font-black uppercase tracking-wider bg-amber-400/20 text-amber-300 px-2.5 py-0.5 rounded-full border border-amber-300/30">
+                  🎉 آخرین برنده قرعه‌کشی ({latestLotteryWinner.monthName})
+                </span>
+                <span className="text-[10px] text-emerald-300 font-bold bg-emerald-900/60 px-2 py-0.5 rounded-full border border-emerald-500/30">
+                  ✓ ثبت قطعی در سامانه
+                </span>
+              </div>
+              <h3 className="text-lg sm:text-xl font-black text-white flex items-center gap-2">
+                <span>{latestLotteryWinner.winnerName}</span>
+              </h3>
+              <p className="text-xs text-teal-200 flex flex-wrap items-center gap-x-3 gap-y-0.5">
+                <span>مبلغ تسهیلات پرداختی: <strong className="text-amber-300 font-mono text-sm">{formatCurrency(latestLotteryWinner.totalPoolAmount)}</strong></span>
+                <span>• وضعیت ماه‌ها: <strong className="text-white">{toPersianDigits(completedMonthsCount)} ماه انجام‌شده</strong> از {toPersianDigits(activeCycle?.totalMonths || 10)} ماه</span>
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 shrink-0 z-10 w-full md:w-auto justify-end">
+            <div className="bg-white/10 backdrop-blur-xs border border-white/15 px-3.5 py-2 rounded-xl text-center">
+              <span className="text-[10px] text-teal-200 block">ماه نوبت بعدی قرعه‌کشی</span>
+              <span className="text-xs font-black text-amber-300 font-mono">
+                {PERS_MONTH_NAMES[settings.currentMonthIndex]} {toPersianDigits(settings.currentYear)}
+              </span>
+            </div>
+          </div>
+
+          {/* Decorative Background Elements */}
+          <div className="absolute -left-10 -bottom-10 w-32 h-32 bg-amber-500/10 rounded-full blur-xl pointer-events-none" />
+          <div className="absolute right-1/4 -top-10 w-48 h-48 bg-teal-500/10 rounded-full blur-2xl pointer-events-none" />
+        </motion.div>
+      )}
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        {/* Right Column (2/3 width on desktop) - Key Statistics Cards */}
+        <div className="md:col-span-2 space-y-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
           
           {/* Unified Card 1: Total Monthly Collection (Loans + Savings) */}
           <motion.div 
@@ -212,7 +304,7 @@ export default function FundOverview({ members, payments, lotteries, settings, c
             <div className="mt-3 pt-3 border-t border-amber-200/70 space-y-1.5 text-xs font-sans">
               <div className="flex items-center justify-between text-[11px]">
                 <span className="text-amber-900 font-medium flex items-center gap-1">
-                  <span>💰 اصل واریزی (ماهانه ۵ م.ت):</span>
+                  <span>💰 اصل واریزی ({toPersianDigits(completedMonthsCount)} ماه پرداخت‌شده):</span>
                 </span>
                 <span className="font-mono font-bold text-slate-800">
                   {formatCurrency(totalGoldDeposits)}
@@ -221,7 +313,7 @@ export default function FundOverview({ members, payments, lotteries, settings, c
 
               <div className="flex items-center justify-between text-[11px]">
                 <span className="text-emerald-800 font-medium flex items-center gap-1">
-                  <span>📈 سود روز اعلامی مدیر:</span>
+                  <span>📈 مجموع سود تا این لحظه:</span>
                 </span>
                 <span className="font-mono font-black text-emerald-700">
                   {hasRegisteredProfit ? `+${formatCurrency(goldProfitToman)}` : (goldProfitToman === 0 ? "۰ تومان (در انتظار ثبت مدیر)" : formatCurrency(goldProfitToman))}
@@ -229,15 +321,16 @@ export default function FundOverview({ members, payments, lotteries, settings, c
               </div>
 
               <div className="flex items-center justify-between text-[11px] pt-1 border-t border-dashed border-amber-200 text-amber-950">
-                <span className="font-bold">🪙 مجموع کل (اصل + سود):</span>
+                <span className="font-bold">🪙 مجموع کل ارزش روز دارایی:</span>
                 <span className="font-mono font-black text-amber-950">
                   {formatCurrency(totalGoldValue)}
                 </span>
               </div>
 
-              <p className="text-[9px] text-amber-900/75 pt-1 leading-tight">
-                * سود سرمایه‌گذاری درصد ثابتی ندارد و در هر دوره بر اساس ارزش روز بازار توسط مدیر ثبت می‌گردد.
-              </p>
+              <div className="flex items-center justify-between text-[10px] text-amber-800 pt-0.5">
+                <span>سهم هر عضو ({toPersianDigits(totalActiveShares)} سهم):</span>
+                <span className="font-mono font-bold">{formatCurrency(goldTotalPerShare)}</span>
+              </div>
             </div>
           </motion.div>
         </div>
@@ -285,61 +378,42 @@ export default function FundOverview({ members, payments, lotteries, settings, c
         </div>
       </div>
 
-      {/* Left Column (1/3 width) - Geometric Hero Highlight for Last Winner & History */}
+      {/* Left Column (1/3 width) - History of Winners in this cycle */}
       <div className="space-y-6" id="winner-history-panel">
-        {/* Dark Teal Hero Segment matching Geometric Balance design */}
-        {latestLotteryWinner ? (
-          <div className="bg-teal-900 text-white rounded-xl p-5 shadow-md relative overflow-hidden">
-            <div className="relative z-10">
-              <span className="text-[9px] uppercase tracking-wide bg-amber-500/20 text-amber-200 border border-amber-300/10 px-2 py-0.5 rounded inline-block mb-3">
-                {latestLotteryWinner.loanType === "emergency" ? "وام ضروری از پس‌انداز" : `برنده قرعه نوبت (${latestLotteryWinner.monthName})`}
-              </span>
-              <div className="text-base font-black mb-2 text-white">{latestLotteryWinner.winnerName}</div>
-              <div className="text-[11px] bg-white/10 border border-white/5 inline-block px-3 py-1.5 rounded">
-                مبلغ وام: {formatCurrency(latestLotteryWinner.totalPoolAmount)}
-              </div>
-              <p className="text-[10px] opacity-75 mt-2">
-                نوع تخصیص: {latestLotteryWinner.drawMethod === "weighted" ? "قرعه‌کشی اعتباری خوش‌حسابی" : 
-                             latestLotteryWinner.drawMethod === "manual" ? "واگذاری انتخابی از لیست تقاضا" : 
-                             latestLotteryWinner.drawMethod === "emergency_random" ? "قرعه وام اضطراری" :
-                             latestLotteryWinner.drawMethod === "emergency_manual" ? "برگزیده ادمین (وام اضطراری)" : "قرعه‌کشی ساده"}
-              </p>
-            </div>
-            {/* Visual Abstract Circle geometry background */}
-            <div className="absolute -right-6 -bottom-6 opacity-10">
-              <div className="w-24 h-24 border-[12px] border-white rounded-full"></div>
-            </div>
-          </div>
-        ) : (
-          <div className="bg-teal-900 text-white rounded-xl p-5 shadow-md text-center py-6">
-            <Trophy className="w-8 h-8 text-white/30 mx-auto mb-2" />
-            <p className="text-xs opacity-80">هنوز قرعه‌کشی دوره‌ای آغاز نشده است.</p>
-          </div>
-        )}
-
-        {/* List of remaining lotteries history */}
         <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm space-y-4 font-sans">
-          <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-2">
-            <Trophy className="w-4 h-4 text-amber-500" />
-            <span>تاریخچه تسهیلات پرداختی صندوق</span>
-          </h4>
+          <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+            <h4 className="text-xs font-bold text-slate-750 uppercase tracking-wider flex items-center gap-2">
+              <Trophy className="w-4 h-4 text-amber-500" />
+              <span>تاریخچه برندگان و تسهیلات این دوره</span>
+            </h4>
+            <span className="text-[10px] font-bold text-teal-800 bg-teal-50 px-2 py-0.5 rounded border border-teal-200">
+              {toPersianDigits(activeCycleWinnersList.length)} برنده
+            </span>
+          </div>
 
-          {lotteries.length === 0 ? (
+          {activeCycleWinnersList.length === 0 ? (
             <div className="py-6 text-center text-slate-400 text-xs">
               ثبت تاریخچه بعد از اولین تخصیص فعال می‌شود.
             </div>
           ) : (
-            <div className="space-y-2.5 max-h-[220px] overflow-y-auto pr-1">
-              {lotteries.slice().reverse().map((lot) => (
+            <div className="space-y-2.5 max-h-[310px] overflow-y-auto pr-1">
+              {activeCycleWinnersList.slice().reverse().map((lot, idx) => (
                 <div 
-                  key={lot.id} 
-                  className={`p-3 rounded-lg border flex items-center justify-between text-xs ${
-                    lot.loanType === "emergency" ? "bg-blue-50/50 border-blue-100" : "bg-slate-50/50 border-slate-100"
+                  key={lot.id || idx} 
+                  className={`p-3 rounded-lg border flex items-center justify-between text-xs transition-all ${
+                    lot.id === latestLotteryWinner?.id 
+                      ? "bg-amber-50/60 border-amber-200 shadow-2xs" 
+                      : lot.loanType === "emergency" 
+                        ? "bg-blue-50/50 border-blue-100" 
+                        : "bg-slate-50/60 border-slate-200/80 hover:bg-teal-50/30"
                   }`}
                 >
                   <div>
                     <div className="flex items-center gap-1.5">
-                      <p className="font-bold text-slate-800">{lot.winnerName}</p>
+                      <p className="font-black text-slate-850">{lot.winnerName}</p>
+                      {lot.id === latestLotteryWinner?.id && (
+                        <span className="bg-amber-200/70 text-[9px] text-amber-900 px-1.5 py-0.2 rounded font-black">آخرین برنده</span>
+                      )}
                       {lot.loanType === "emergency" && (
                         <span className="bg-blue-100 text-[9px] text-blue-850 px-1 py-0.5 rounded font-bold">وام ضروری</span>
                       )}
@@ -350,11 +424,9 @@ export default function FundOverview({ members, payments, lotteries, settings, c
                     <p className={`font-black ${lot.loanType === "emergency" ? "text-blue-700" : "text-teal-700"}`}>
                       {formatCurrency(lot.totalPoolAmount)}
                     </p>
-                    <p className="text-[8px] text-slate-400 mt-0.5">
-                      {lot.drawMethod === "weighted" ? "اعتباری" : 
-                       lot.drawMethod === "manual" ? "بر اساس درخواست" : 
-                       lot.drawMethod.includes("emergency") ? "پس‌انداز انباشته" : "قرعه ساده"}
-                    </p>
+                    <span className="text-[9px] text-emerald-700 font-bold bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200">
+                      پرداخت شد ✓
+                    </span>
                   </div>
                 </div>
               ))}
@@ -363,20 +435,27 @@ export default function FundOverview({ members, payments, lotteries, settings, c
 
           <div className="bg-slate-50 rounded-lg p-3 text-[11px] text-slate-500 space-y-1.5 border border-slate-150">
             <div className="flex justify-between">
-              <span>گردش انباشته کل صندوق:</span>
-              <span className="font-black text-slate-700">{formatCurrency(totalPaidAllTime)}</span>
+              <span>تعداد کل ماه‌های دوره:</span>
+              <span className="font-bold text-slate-700">{toPersianDigits(activeCycle?.totalMonths || 10)} ماه</span>
             </div>
             <div className="flex justify-between">
-              <span>صندوق پس‌انداز فعال:</span>
-              <span className="font-black text-blue-800">{formatCurrency(netEmergencyPoolAvailable)}</span>
+              <span>ماه‌های پرداخت‌شده تا کنون:</span>
+              <span className="font-black text-teal-800">{toPersianDigits(completedMonthsCount)} ماه</span>
             </div>
             <div className="flex justify-between">
-              <span>کل تسهیلات ثبت‌شده:</span>
-              <span className="font-bold text-slate-755">{toPersianDigits(lotteries.length)} مورد</span>
+              <span>ماه‌های باقی‌مانده دوره:</span>
+              <span className="font-bold text-slate-700">
+                {toPersianDigits(Math.max(0, (activeCycle?.totalMonths || 10) - completedMonthsCount))} ماه
+              </span>
+            </div>
+            <div className="flex justify-between pt-1 border-t border-slate-200 text-slate-700">
+              <span>صندوق پس‌انداز طلا (اصل):</span>
+              <span className="font-black text-amber-900">{formatCurrency(totalGoldDeposits)}</span>
             </div>
           </div>
         </div>
       </div>
     </div>
+  </div>
   );
 }
